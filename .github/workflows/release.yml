@@ -1,0 +1,115 @@
+
+name: Release Binary
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  BIN_NAME: vsleep
+  CROSS_REVISION: 88f49ff79e777bef6d3564531636ee4d3cc2f8d2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: x86_64
+            target: x86_64-unknown-linux-gnu
+            ext: ""
+          - os: linux
+            arch: aarch64
+            target: aarch64-unknown-linux-gnu
+            ext: ""
+          - os: windows
+            arch: x86_64
+            target: x86_64-pc-windows-gnu
+            ext: ".exe"
+          - os: macos
+            arch: x86_64
+            target: x86_64-apple-darwin
+            ext: ""
+          - os: macos
+            arch: aarch64
+            target: aarch64-apple-darwin
+            ext: ""
+          - os: freebsd
+            arch: x86_64
+            target: x86_64-unknown-freebsd
+            ext: ""
+    steps:
+      - uses: actions/checkout@900f2210b1d28bbbd0bd22d17926b9e224e8f231
+        with:
+          persist-credentials: false
+      - uses: leynos/shared-actions/.github/actions/setup-rust@e4c6b0e200a057edf927c45c298e7ddf229b3934
+        with:
+          toolchain: stable
+      - name: Cache cross binary
+        id: cache-cross
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: ~/.cargo/bin/cross
+          key: cross-${{ env.CROSS_REVISION }}
+      - name: Install cross
+        env:
+          # Clear repository build flags from .cargo/config.toml (mold linker
+          # and Cranelift codegen-backend) before installing cross from CROSS_REVISION.
+          RUSTFLAGS: ""
+        run: |
+          if [ -x "$HOME/.cargo/bin/cross" ]; then
+            exit 0
+          fi
+          cargo install cross --git https://github.com/cross-rs/cross --rev "${CROSS_REVISION}"
+      - name: Cache cargo registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+      - name: Build release binary
+        # Use +stable to override rust-toolchain.toml (which specifies nightly
+        # with Cranelift for development) and ensure release builds use stable.
+        env:
+          # Build release artifacts without repository-local linker flags,
+          # including mold rustflags from .cargo/config.toml.
+          RUSTFLAGS: ""
+        run: cross +stable build --release --target ${{ matrix.target }}
+      - name: Prepare artifact
+        run: |
+          mkdir -p artifacts/${{ matrix.os }}-${{ matrix.arch }}
+          cp target/${{ matrix.target }}/release/${{ env.BIN_NAME }}${{ matrix.ext }} \
+            artifacts/${{ matrix.os }}-${{ matrix.arch }}/${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }}
+          cd artifacts/${{ matrix.os }}-${{ matrix.arch }}
+          sha256sum ${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }} > \
+            ${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }}.sha256
+      - name: Upload release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ${{ env.BIN_NAME }}-${{ matrix.os }}-${{ matrix.arch }}
+          path: artifacts/${{ matrix.os }}-${{ matrix.arch }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@403a5240f3837fa857f642062e05aad6bb3391ca
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/*/*
+
