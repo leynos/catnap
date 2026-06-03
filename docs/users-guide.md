@@ -59,7 +59,9 @@ The generated `Makefile` exposes these public targets:
 - `make check-fmt` verifies Rust formatting.
 - `make lint` runs rustdoc, Clippy, and Whitaker with warnings denied.
 - `make test` runs `cargo nextest run` when cargo-nextest is installed and
-  falls back to `cargo test` otherwise. Library projects also run doctests.
+  falls back to `cargo test` otherwise. `cargo nextest run` does not execute
+  doctests, so they run only through the `cargo test` fallback; run
+  `cargo test --doc` separately to exercise doctests when nextest is present.
 - `make build` builds the debug target.
 - `make release` builds the release target.
 - `make coverage` writes `lcov.info` using `cargo llvm-cov` and `lld`.
