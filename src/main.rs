@@ -1,12 +1,10 @@
 //! `vsleep` application entry point.
 
-// TODO: Remove when replacing app scaffolding
-// (docs/execplans/rust-project-enhancements.md).
+use std::process::ExitCode;
+
 /// Application entry point.
-#[expect(
-    clippy::print_stdout,
-    reason = "temporary app stub tracked in docs/execplans/rust-project-enhancements.md"
-)]
-fn main() {
-    println!("Hello from vsleep!");
+fn main() -> ExitCode {
+    let mut stdout = std::io::stdout().lock();
+    let mut stderr = std::io::stderr().lock();
+    vsleep::run_application(std::env::args_os(), &mut stdout, &mut stderr)
 }

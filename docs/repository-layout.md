@@ -1,13 +1,13 @@
 # Repository layout
 
-This document describes the generated vsleep repository layout. It
-is the canonical reference for where source code, tests, configuration,
-automation, and long-lived documentation belong.
+This document describes the generated vsleep repository layout. It is the
+canonical reference for where source code, tests, configuration, automation,
+and long-lived documentation belong.
 
 ## Top-level tree
 
-The tree below shows the generated repository structure. It is intentionally
-compact and omits build output such as `target/`.
+The tree below shows the repository structure. It is intentionally compact and
+omits build output such as `target/`.
 
 ```plaintext
 .
@@ -27,11 +27,19 @@ compact and omits build output such as `target/`.
 │   ├── users-guide.md
 │   └── ...
 ├── src/
-
-│   └── main.rs
-
+│   ├── cli.rs
+│   ├── clock.rs
+│   ├── duration.rs
+│   ├── format.rs
+│   ├── lib.rs
+│   ├── main.rs
+│   └── runner.rs
 ├── tests/
-│   └── stub.rs
+│   ├── behaviour.rs
+│   ├── e2e.rs
+│   ├── features/
+│   │   └── sleep_cli.feature
+│   └── snapshots.rs
 ├── AGENTS.md
 ├── Cargo.toml
 ├── LICENSE
@@ -64,13 +72,30 @@ compact and omits build output such as `target/`.
 - `docs/repository-layout.md`: Documents the repository tree and path
   responsibilities.
 
+- `src/lib.rs`: Exposes the library boundary used by the binary, unit tests,
+  behavioural tests, and documentation examples.
 - `src/main.rs`: Contains the application entrypoint and top-level executable
   wiring.
+- `src/cli.rs`: Parses GNU-like sleep operands, public options, and the hidden
+  e2e-only logical-second argument.
+- `src/clock.rs`: Defines the injectable monotonic clock trait and the real
+  `Instant`-backed implementation.
+- `src/duration.rs`: Parses duration operands and selects progress-reporting
+  intervals.
+- `src/format.rs`: Formats remaining-time progress lines for the selected
+  locale.
+- `src/runner.rs`: Coordinates monotonic sleeping and progress output.
 
 - `tests/`: Holds integration and behavioural tests that exercise public
   behaviour.
-- `tests/stub.rs`: Keeps the generated test directory valid until real tests
-  replace it.
+- `tests/behaviour.rs`: Binds `rstest-bdd` scenarios to GNU-like operand
+  behaviour.
+- `tests/e2e.rs`: Builds and runs the compiled binary through accelerated
+  logical seconds.
+- `tests/features/sleep_cli.feature`: Describes behaviour-driven parsing
+  scenarios.
+- `tests/snapshots.rs`: Pins representative locale-aware remaining-time
+  output.
 - `AGENTS.md`: Provides repository-specific working instructions for agents and
   contributors.
 - `Cargo.toml`: Defines package metadata, dependencies, lint policy, and Cargo
@@ -88,8 +113,8 @@ compact and omits build output such as `target/`.
 
 ## Ownership boundaries
 
-- Keep generated source code under `src/`. Add modules below `src/` when a
-  feature grows beyond a small entrypoint or crate root.
+- Keep source code under `src/`. Keep `src/main.rs` thin and put reusable
+  command logic behind the library boundary in `src/lib.rs` and sibling modules.
 - Keep black-box integration tests and externally observable workflow tests
   under `tests/`.
 - Keep reusable documentation under `docs/`. Update `docs/contents.md` whenever

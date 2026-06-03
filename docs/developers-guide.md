@@ -1,7 +1,6 @@
 # Developer Guide
 
-This guide explains the contributor workflow for the generated
-vsleep project.
+This guide explains the contributor workflow for the `vsleep` command.
 
 ## Local Workflow
 
@@ -19,3 +18,32 @@ LLVM-compatible linker behaviour.
 
 Install `clang`, `lld`, and `mold` before running the full generated workflow
 locally on Linux.
+
+## Implementation Boundaries
+
+The binary entry point in `src/main.rs` only wires process streams and command
+arguments into the library. Command parsing, duration parsing, locale-aware
+remaining-time formatting, monotonic clock handling, and sleep orchestration
+live in `src/lib.rs` and its sibling modules.
+
+The runner depends on the `MonotonicClock` trait rather than calling
+`std::time::Instant` directly. Production code uses `RealMonotonicClock`; tests
+use `mockall` to verify runner behaviour with deterministic monotonic time.
+
+End-to-end tests use the hidden `--logical-second-ms` argument to shorten one
+logical second to a small real duration. This argument is private test support:
+it is intentionally omitted from normal help output and must not be documented
+as a user-facing option.
+
+## Test Layout
+
+The test suite covers the same behaviour from several angles:
+
+- Unit tests in `src/duration.rs`, `src/format.rs`, and `src/runner.rs` cover
+  parsing, cadence selection, locale formatting, and mock-clock orchestration.
+- Behavioural tests in `tests/behaviour.rs` use `rstest-bdd` scenarios from
+  `tests/features/sleep_cli.feature`.
+- Snapshot tests in `tests/snapshots.rs` pin representative remaining-time
+  output.
+- End-to-end tests in `tests/e2e.rs` build and run the compiled binary with
+  accelerated logical seconds.

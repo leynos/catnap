@@ -11,6 +11,8 @@ keywords = ["rust", "timer", "cli"]
 categories = ["command-line-utilities"]
 
 [dependencies]
+sys-locale = "0.3.2"
+thiserror = "2.0.18"
 
 # The package.metadata.binstall pkg-url intentionally mixes Jinja2 values
 # rendered at project generation with single-brace cargo-binstall variables
@@ -87,3 +89,13 @@ missing_docs                        = "deny"
 
 [lints.rustdoc]
 missing_crate_level_docs            = "deny"
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+insta = "1.47.2"
+mockall = "0.14.0"
+predicates = "3.1.4"
+rstest = "0.26.1"
+rstest-bdd = "0.5.0"
+rstest-bdd-macros = "0.5.0"
+serde_json = "1.0.150"
