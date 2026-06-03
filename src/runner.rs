@@ -19,7 +19,7 @@ impl RunConfig {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use vsleep::RunConfig;
+    /// use catnap::RunConfig;
     ///
     /// let config = RunConfig::new(Duration::from_secs(5), "en-GB");
     /// assert_eq!(config.total_duration(), Duration::from_secs(5));
@@ -42,7 +42,7 @@ impl RunConfig {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use vsleep::RunConfig;
+    /// use catnap::RunConfig;
     ///
     /// let config = RunConfig::new(Duration::from_secs(1), "en");
     /// assert_eq!(config.total_duration(), Duration::from_secs(1));
@@ -57,7 +57,7 @@ impl RunConfig {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use vsleep::RunConfig;
+    /// use catnap::RunConfig;
     ///
     /// let config = RunConfig::new(Duration::from_secs(1), "fr-FR");
     /// assert_eq!(config.locale(), "fr-FR");
@@ -73,7 +73,7 @@ impl RunConfig {
 /// ```
 /// use std::{io, time::Duration};
 ///
-/// use vsleep::{MonotonicClock, MonotonicTimestamp, RunConfig, run_sleep};
+/// use catnap::{MonotonicClock, MonotonicTimestamp, RunConfig, run_sleep};
 ///
 /// struct DoneClock;
 ///

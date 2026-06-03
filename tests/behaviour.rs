@@ -1,9 +1,9 @@
 //! Behavioural tests for GNU-like sleep command parsing.
 
+use catnap::{CliError, CommandAction, parse_command};
 use rstest::fixture;
 use rstest_bdd::{ScenarioState as _, Slot};
 use rstest_bdd_macros::{ScenarioState, given, scenario, then, when};
-use vsleep::{CliError, CommandAction, parse_command};
 
 #[derive(Default, ScenarioState)]
 struct SleepState {
@@ -32,7 +32,7 @@ fn sleep_operands(sleep_state: &SleepState, operands: &str) {
 #[when("the sleep command is parsed")]
 fn parse_sleep_command(sleep_state: &SleepState) {
     let operands = sleep_state.operands.get().unwrap_or_default();
-    let args = std::iter::once("vsleep".to_owned())
+    let args = std::iter::once("catnap".to_owned())
         .chain(operands)
         .collect::<Vec<_>>();
     store_parse_result(sleep_state, parse_command(args));

@@ -1,7 +1,7 @@
 .PHONY: help all clean test build release coverage lint fmt check-fmt markdownlint nixie
 
 
-TARGET ?= vsleep
+TARGET ?= catnap
 
 USER_WHITAKER := $(HOME)/.local/bin/whitaker
 USER_BIN_PATH := $(HOME)/.cargo/bin:$(HOME)/.local/bin:$(HOME)/.bun/bin

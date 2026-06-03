@@ -1,14 +1,14 @@
 # User Guide
 
-This guide explains how to use `vsleep`, a GNU-like sleep command that reports
+This guide explains how to use `catnap`, a GNU-like sleep command that reports
 remaining time while it waits.
 
 ## Command Syntax
 
-Run `vsleep` with one or more duration operands:
+Run `catnap` with one or more duration operands:
 
 ```sh
-vsleep NUMBER[SUFFIX]...
+catnap NUMBER[SUFFIX]...
 ```
 
 Each operand is a non-negative decimal number with an optional suffix:
@@ -21,7 +21,7 @@ Each operand is a non-negative decimal number with an optional suffix:
 Multiple operands are summed, matching GNU `sleep` style:
 
 ```sh
-vsleep 1m 5s
+catnap 1m 5s
 ```
 
 The command accepts `--help` and `--version`. Invalid operands, missing
@@ -30,7 +30,7 @@ error with a non-zero exit status.
 
 ## Progress Output
 
-`vsleep` uses a monotonic stopwatch, so changes to the system wall clock do not
+`catnap` uses a monotonic stopwatch, so changes to the system wall clock do not
 alter the requested wait. Progress is written to standard error; standard
 output stays empty.
 

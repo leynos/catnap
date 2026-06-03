@@ -1,6 +1,6 @@
 # Developer Guide
 
-This guide explains the contributor workflow for the `vsleep` command.
+This guide explains the contributor workflow for the `catnap` command.
 
 ## Local Workflow
 

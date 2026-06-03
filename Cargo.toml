@@ -1,11 +1,11 @@
 [package]
-name = "vsleep"
+name = "catnap"
 version = "0.1.0"
 edition = "2024"
 description = "Visual CLI sleep"
 license = "ISC"
-repository = "https://github.com/leynos/vsleep"
-homepage = "https://github.com/leynos/vsleep"
+repository = "https://github.com/leynos/catnap"
+homepage = "https://github.com/leynos/catnap"
 readme = "README.md"
 keywords = ["rust", "timer", "cli"]
 categories = ["command-line-utilities"]
@@ -18,7 +18,7 @@ thiserror = "2.0.18"
 # rendered at project generation with single-brace cargo-binstall variables
 # substituted at install time.
 [package.metadata.binstall]
-pkg-url = "https://github.com/leynos/vsleep/releases/download/v{ version }/vsleep-{ target }{ binary-ext }"
+pkg-url = "https://github.com/leynos/catnap/releases/download/v{ version }/catnap-{ target }{ binary-ext }"
 pkg-fmt = "bin"
 disabled-strategies = ["quick-install", "compile"]
 
