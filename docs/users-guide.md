@@ -1,14 +1,14 @@
 # User Guide
 
-This guide explains how to use `vsleep`, a GNU-like sleep command that reports
+This guide explains how to use `catnap`, a GNU-like sleep command that reports
 remaining time while it waits.
 
 ## Command Syntax
 
-Run `vsleep` with one or more duration operands:
+Run `catnap` with one or more duration operands:
 
 ```sh
-vsleep NUMBER[SUFFIX]...
+catnap NUMBER[SUFFIX]...
 ```
 
 Each operand is a non-negative decimal number with an optional suffix:
@@ -21,7 +21,7 @@ Each operand is a non-negative decimal number with an optional suffix:
 Multiple operands are summed, matching GNU `sleep` style:
 
 ```sh
-vsleep 1m 5s
+catnap 1m 5s
 ```
 
 The command accepts `--help` and `--version`. Invalid operands, missing
@@ -30,7 +30,7 @@ error with a non-zero exit status.
 
 ## Progress Output
 
-`vsleep` uses a monotonic stopwatch, so changes to the system wall clock do not
+`catnap` uses a monotonic stopwatch, so changes to the system wall clock do not
 alter the requested wait. Progress is written to standard error; standard
 output stays empty.
 
@@ -48,7 +48,7 @@ translation is available, with English used as the fallback locale.
 The project uses Rust 2024, a pinned nightly toolchain, strict lint settings,
 and documented source code. Development builds use Cranelift for debug code
 generation. On Linux targets, `.cargo/config.toml` configures clang to link with
- `mold` so local debug builds link quickly. Coverage generation uses `lld`
+`mold` so local debug builds link quickly. Coverage generation uses `lld`
 instead because LLVM coverage tools expect LLVM-compatible linker behaviour.
 
 ## Makefile Targets
@@ -59,7 +59,10 @@ The generated `Makefile` exposes these public targets:
 - `make check-fmt` verifies Rust formatting.
 - `make lint` runs rustdoc, Clippy, and Whitaker with warnings denied.
 - `make test` runs `cargo nextest run` when cargo-nextest is installed and
-  falls back to `cargo test` otherwise. Library projects also run doctests.
+  falls back to `cargo test` otherwise. Because `cargo nextest run` does not
+  execute doctests, a nextest-backed `make test` run skips them; run
+  `cargo test --doc` separately as a required additional step when nextest is
+  present.
 - `make build` builds the debug target.
 - `make release` builds the release target.
 - `make coverage` writes `lcov.info` using `cargo llvm-cov` and `lld`.

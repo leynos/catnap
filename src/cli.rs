@@ -30,14 +30,14 @@ impl Command {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use vsleep::{Command, parse_command};
+    /// use catnap::{Command, parse_command};
     ///
-    /// let action = parse_command(["vsleep", "2"])?;
-    /// let vsleep::CommandAction::Sleep(command) = action else {
+    /// let action = parse_command(["catnap", "2"])?;
+    /// let catnap::CommandAction::Sleep(command) = action else {
     ///     panic!("expected sleep command");
     /// };
     /// assert_eq!(command.duration(), Duration::from_secs(2));
-    /// # Ok::<(), vsleep::CliError>(())
+    /// # Ok::<(), catnap::CliError>(())
     /// ```
     #[must_use]
     pub const fn duration(&self) -> Duration { self.duration }
@@ -49,14 +49,14 @@ impl Command {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use vsleep::{CommandAction, parse_command};
+    /// use catnap::{CommandAction, parse_command};
     ///
-    /// let action = parse_command(["vsleep", "--logical-second-ms", "10", "1"])?;
+    /// let action = parse_command(["catnap", "--logical-second-ms", "10", "1"])?;
     /// let CommandAction::Sleep(command) = action else {
     ///     panic!("expected sleep command");
     /// };
     /// assert_eq!(command.logical_second(), Duration::from_millis(10));
-    /// # Ok::<(), vsleep::CliError>(())
+    /// # Ok::<(), catnap::CliError>(())
     /// ```
     #[must_use]
     pub const fn logical_second(&self) -> Duration { self.logical_second }
@@ -101,14 +101,14 @@ pub enum CliError {
 /// ```
 /// use std::time::Duration;
 ///
-/// use vsleep::{CommandAction, parse_command};
+/// use catnap::{CommandAction, parse_command};
 ///
-/// let action = parse_command(["vsleep", "1m", "5s"])?;
+/// let action = parse_command(["catnap", "1m", "5s"])?;
 /// let CommandAction::Sleep(command) = action else {
 ///     panic!("expected sleep command");
 /// };
 /// assert_eq!(command.duration(), Duration::from_secs(65));
-/// # Ok::<(), vsleep::CliError>(())
+/// # Ok::<(), catnap::CliError>(())
 /// ```
 ///
 /// # Errors

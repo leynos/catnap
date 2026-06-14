@@ -1,13 +1,16 @@
 # Developer Guide
 
-This guide explains the contributor workflow for the `vsleep` command.
+This guide explains the contributor workflow for the `catnap` command.
 
 ## Local Workflow
 
 Use `make all` as the public entrypoint for formatting, linting, and tests.
 `make lint` runs rustdoc, Clippy, and Whitaker. `make test` prefers
 `cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
-available. `make coverage` uses `cargo llvm-cov` with `lld`.
+available. Because `cargo nextest run` does not execute doctests, a
+nextest-backed `make test` run skips them; run `cargo test --doc` separately as
+a required additional step when nextest is present. `make coverage` uses
+`cargo llvm-cov` with `lld`.
 
 ## Tooling
 

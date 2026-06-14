@@ -17,7 +17,7 @@ const SECONDS_PER_DAY: u64 = 86_400;
 /// ```
 /// use std::time::Duration;
 ///
-/// use vsleep::format_remaining_time;
+/// use catnap::format_remaining_time;
 ///
 /// let line = format_remaining_time(Duration::from_secs(65), "en-GB");
 /// assert_eq!(line, "1 minute 5 seconds remaining\n");

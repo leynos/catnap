@@ -20,7 +20,7 @@ pub enum DurationParseError {
         /// Operand text received from the command line.
         operand: String,
     },
-    /// An operand used a suffix that `vsleep` does not support.
+    /// An operand used a suffix that `catnap` does not support.
     #[error("invalid time suffix in '{operand}'")]
     InvalidSuffix {
         /// Operand text received from the command line.
@@ -53,11 +53,11 @@ pub enum DurationParseError {
 /// ```
 /// use std::time::Duration;
 ///
-/// use vsleep::parse_sleep_duration;
+/// use catnap::parse_sleep_duration;
 ///
 /// let duration = parse_sleep_duration(&["1m".to_owned(), "5s".to_owned()])?;
 /// assert_eq!(duration, Duration::from_secs(65));
-/// # Ok::<(), vsleep::DurationParseError>(())
+/// # Ok::<(), catnap::DurationParseError>(())
 /// ```
 ///
 /// # Errors
@@ -89,7 +89,7 @@ pub fn parse_sleep_duration(operands: &[String]) -> Result<Duration, DurationPar
 /// ```
 /// use std::time::Duration;
 ///
-/// use vsleep::report_interval;
+/// use catnap::report_interval;
 ///
 /// assert_eq!(
 ///     report_interval(Duration::from_secs(20)),

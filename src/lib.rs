@@ -1,4 +1,4 @@
-//! Library support for the `vsleep` command-line application.
+//! Library support for the `catnap` command-line application.
 
 mod cli;
 mod clock;
@@ -15,8 +15,8 @@ pub use format::format_remaining_time;
 pub use runner::{RunConfig, run_sleep};
 
 const HELP: &str = concat!(
-    "Usage: vsleep NUMBER[SUFFIX]...\n",
-    "  or:  vsleep OPTION\n",
+    "Usage: catnap NUMBER[SUFFIX]...\n",
+    "  or:  catnap OPTION\n",
     "Pause for the sum of the requested durations while reporting remaining time.\n\n",
     "Each NUMBER may be followed by a suffix:\n",
     "  s  seconds (default)\n",
@@ -28,26 +28,28 @@ const HELP: &str = concat!(
     "      --version  output version information and exit\n",
 );
 
-const VERSION: &str = concat!("vsleep ", env!("CARGO_PKG_VERSION"), "\n");
+const VERSION: &str = concat!("catnap ", env!("CARGO_PKG_VERSION"), "\n");
 
-/// Run the `vsleep` application with injectable streams.
+/// Run the `catnap` application with injectable streams.
 ///
 /// # Examples
 ///
 /// ```
 /// use std::ffi::OsString;
 ///
-/// use vsleep::run_application;
+/// use catnap::run_application;
 ///
 /// let mut stdout = Vec::new();
 /// let mut stderr = Vec::new();
-/// let status = run_application(
-///     [OsString::from("vsleep"), OsString::from("--help")],
+/// // `ExitCode` exposes neither a success predicate nor equality, so the
+/// // example asserts the observable stream behaviour instead.
+/// let _status = run_application(
+///     [OsString::from("catnap"), OsString::from("--help")],
 ///     &mut stdout,
 ///     &mut stderr,
 /// );
 ///
-/// assert!(status.success());
+/// assert!(!stdout.is_empty());
 /// assert!(stderr.is_empty());
 /// ```
 pub fn run_application<I, W, E>(args: I, stdout: &mut W, stderr: &mut E) -> ExitCode
@@ -97,7 +99,7 @@ where
 {
     write_error(
         stderr,
-        &format!("vsleep: {error}\nTry 'vsleep --help' for more information.\n"),
+        &format!("catnap: {error}\nTry 'catnap --help' for more information.\n"),
     )
 }
 
@@ -105,7 +107,7 @@ fn write_clock_error<E>(error: &ClockConfigError, stderr: &mut E) -> ExitCode
 where
     E: Write,
 {
-    write_error(stderr, &format!("vsleep: {error}\n"))
+    write_error(stderr, &format!("catnap: {error}\n"))
 }
 
 fn write_io_error<E>(error: &std::io::Error, stderr: &mut E) -> ExitCode
@@ -114,7 +116,7 @@ where
 {
     write_error(
         stderr,
-        &format!("vsleep: failed to write progress: {error}\n"),
+        &format!("catnap: failed to write progress: {error}\n"),
     )
 }
 

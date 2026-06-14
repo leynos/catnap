@@ -7,7 +7,7 @@ on:
       - 'v*.*.*'
 
 env:
-  BIN_NAME: vsleep
+  BIN_NAME: catnap
   CROSS_REVISION: 88f49ff79e777bef6d3564531636ee4d3cc2f8d2
 
 jobs:

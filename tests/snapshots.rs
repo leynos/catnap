@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use vsleep::format_remaining_time;
+use catnap::format_remaining_time;
 
 #[test]
 fn snapshots_representative_remaining_time_lines() {

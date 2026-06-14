@@ -1,4 +1,4 @@
-//! `vsleep` application entry point.
+//! `catnap` application entry point.
 
 use std::process::ExitCode;
 
@@ -6,5 +6,5 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     let mut stdout = std::io::stdout().lock();
     let mut stderr = std::io::stderr().lock();
-    vsleep::run_application(std::env::args_os(), &mut stdout, &mut stderr)
+    catnap::run_application(std::env::args_os(), &mut stdout, &mut stderr)
 }

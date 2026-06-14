@@ -1,6 +1,6 @@
 # Repository layout
 
-This document describes the generated vsleep repository layout. It is the
+This document describes the generated catnap repository layout. It is the
 canonical reference for where source code, tests, configuration, automation,
 and long-lived documentation belong.
 

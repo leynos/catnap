@@ -16,7 +16,7 @@ impl MonotonicTimestamp {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use vsleep::MonotonicTimestamp;
+    /// use catnap::MonotonicTimestamp;
     ///
     /// let stamp = MonotonicTimestamp::from_elapsed(Duration::from_secs(2));
     /// assert_eq!(stamp.duration_since(stamp), Duration::ZERO);
@@ -31,7 +31,7 @@ impl MonotonicTimestamp {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use vsleep::MonotonicTimestamp;
+    /// use catnap::MonotonicTimestamp;
     ///
     /// let start = MonotonicTimestamp::from_elapsed(Duration::from_secs(3));
     /// let end = MonotonicTimestamp::from_elapsed(Duration::from_secs(8));
@@ -79,7 +79,7 @@ impl RealMonotonicClock {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use vsleep::RealMonotonicClock;
+    /// use catnap::RealMonotonicClock;
     ///
     /// let clock = RealMonotonicClock::new(Duration::from_secs(1));
     /// assert!(clock.is_ok());
