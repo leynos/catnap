@@ -32,7 +32,7 @@ fn sleep_operands(sleep_state: &SleepState, operands: &str) {
 #[when("the sleep command is parsed")]
 fn parse_sleep_command(sleep_state: &SleepState) {
     let operands = sleep_state.operands.get().unwrap_or_default();
-    let args = std::iter::once("catnap".to_owned())
+    let args = std::iter::once("vsleep".to_owned())
         .chain(operands)
         .collect::<Vec<_>>();
     store_parse_result(sleep_state, parse_command(args));
