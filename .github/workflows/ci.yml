@@ -38,7 +38,7 @@ jobs:
             !**/target/**
             !**/dist/**
       - name: Setup uv
-        uses: astral-sh/setup-uv@a92cb430984b4b2b34c9c47e020cf035089958fa
+        uses: astral-sh/setup-uv@ca5ddd015e07666cb1f1340ad6171f5e7afffb3e
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest
       - name: Cache Whitaker installation
