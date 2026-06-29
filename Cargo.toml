@@ -93,7 +93,7 @@ missing_crate_level_docs            = "deny"
 [dev-dependencies]
 assert_cmd = "2.2.2"
 insta = "1.47.2"
-mockall = "0.14.0"
+mockall = "0.15.0"
 predicates = "3.1.4"
 rstest = "0.26.1"
 rstest-bdd = "0.5.0"
