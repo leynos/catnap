@@ -13,7 +13,7 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       BUILD_PROFILE: debug
-      WHITAKER_INSTALLER_REV: f768c2e53c47df13658af1168a67851d388750bf
+      WHITAKER_INSTALLER_VERSION: '0.2.5'
     steps:
       - uses: actions/checkout@4f1f4aec02e41874fa0262ea8ff5172d7978ad1e
         with:
@@ -41,27 +41,27 @@ jobs:
         uses: astral-sh/setup-uv@c5680ec91f7b9b91406fab4ded5d45245abf7b67
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest
-      - name: Cache Whitaker installation
-        id: cache-whitaker
+      - name: Cache Whitaker installer
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ~/.cargo/bin/whitaker-installer
-            ~/.local/bin/whitaker
-            ~/.dylint_drivers
-            ~/.local/share/whitaker
-          key: whitaker-v2-${{ runner.os }}-${{ env.WHITAKER_INSTALLER_REV }}
+            ~/.cache/cargo-binstall
+          key: whitaker-installer-${{ runner.os }}-${{ runner.arch }}-${{ env.WHITAKER_INSTALLER_VERSION }}
       - name: Install Whitaker
         run: |
           set -euo pipefail
-          echo "Whitaker cache hit: ${{ steps.cache-whitaker.outputs.cache-hit }}"
-          if [ "${{ steps.cache-whitaker.outputs.cache-hit }}" != "true" ]; then
-            echo "Installing Whitaker installer at ${WHITAKER_INSTALLER_REV}"
-            cargo install --locked \
-              --git https://github.com/leynos/whitaker \
-              --rev "${WHITAKER_INSTALLER_REV}" \
-              whitaker-installer
+          if ! command -v whitaker-installer >/dev/null 2>&1; then
+            if cargo binstall --version >/dev/null 2>&1; then
+              cargo binstall --no-confirm --locked "whitaker-installer@${WHITAKER_INSTALLER_VERSION}"
+            else
+              echo "cargo-binstall unavailable; building whitaker-installer from crates.io"
+              cargo install --locked whitaker-installer --version "${WHITAKER_INSTALLER_VERSION}"
+            fi
           fi
+          # --cranelift provisions rustc-codegen-cranelift on Whitaker's pinned
+          # toolchain; this project builds with the Cranelift debug backend.
+
           whitaker-installer --cranelift
           echo "Whitaker binary: $(command -v whitaker || true)"
       - name: Lint
