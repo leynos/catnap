@@ -77,11 +77,11 @@ jobs:
         # Use +stable to override rust-toolchain.toml (which specifies nightly
         # with Cranelift for development) and ensure release builds use stable.
         env:
-          # Build release artifacts without repository-local linker flags,
+          # Build release artefacts without repository-local linker flags,
           # including mold rustflags from .cargo/config.toml.
           RUSTFLAGS: ""
         run: cross +stable build --release --target ${{ matrix.target }}
-      - name: Prepare artifact
+      - name: Prepare artefact
         run: |
           mkdir -p artifacts/${{ matrix.os }}-${{ matrix.arch }}
           cp target/${{ matrix.target }}/release/${{ env.BIN_NAME }}${{ matrix.ext }} \
@@ -89,7 +89,7 @@ jobs:
           cd artifacts/${{ matrix.os }}-${{ matrix.arch }}
           sha256sum ${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }} > \
             ${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }}.sha256
-      - name: Upload release artifact
+      - name: Upload release artefact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ env.BIN_NAME }}-${{ matrix.os }}-${{ matrix.arch }}
@@ -112,4 +112,3 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/*/*
-

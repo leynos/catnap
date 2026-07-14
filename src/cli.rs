@@ -69,7 +69,7 @@ pub enum CliError {
     /// An argument was not valid UTF-8.
     #[error("invalid non-Unicode argument")]
     NonUnicodeArgument,
-    /// A recognised option was missing its required value.
+    /// A recognized option was missing its required value.
     #[error("option '{option}' requires an argument")]
     MissingOptionValue {
         /// Option that required an additional value.

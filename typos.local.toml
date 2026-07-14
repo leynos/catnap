@@ -1,0 +1,23 @@
+schema = 1
+
+[oxford]
+stems = []
+
+[words]
+accepted = []
+
+[words.corrections]
+
+[patterns]
+ignore = [
+  '\bCARGO_TERM_COLOR\b',
+  '\bmold\b',
+  'types: \[[^]]*\blabeled\b',
+  '"seconde"',
+  'GitHub Flavored\s+Markdown',
+  'Azure Architecture\s+Center',
+  '"ises"',
+]
+
+[files]
+exclude = []
