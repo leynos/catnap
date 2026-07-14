@@ -62,7 +62,7 @@ diagrams are present.
 
 Escalate before proceeding if satisfying GNU-like parsing requires supporting
 syntax beyond `NUMBER[SUFFIX]`, if locale-aware formatting requires a very
-large internationalisation framework instead of a small dependency, or if the
+large internationalization framework instead of a small dependency, or if the
 private e2e acceleration argument would be visible in normal help output.
 
 Escalate if any source file would exceed four hundred lines after the change,
@@ -165,7 +165,7 @@ error so standard output remains available for scripts.
 
 2026-06-01: Keep the e2e acceleration argument hidden and private. It is a
 testing seam, not a user-facing option, and normal help output should not
-advertize it.
+advertise it.
 
 2026-06-01: Avoid a full CLI framework for the first implementation. The public
 syntax is intentionally small, and handwritten parsing keeps the GNU-like
