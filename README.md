@@ -1,5 +1,8 @@
 # catnap
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](
+https://deepwiki.com/leynos/catnap)
+
 `catnap` is a GNU-like `sleep` command that reports remaining time while it
 waits. It uses a monotonic clock, so wall-clock adjustments do not change the
 requested wait.
