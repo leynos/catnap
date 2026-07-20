@@ -38,7 +38,7 @@ jobs:
             !**/target/**
             !**/dist/**
       - name: Setup uv
-        uses: astral-sh/setup-uv@c5680ec91f7b9b91406fab4ded5d45245abf7b67
+        uses: astral-sh/setup-uv@71966eff34a27b0a62ed4b9f6f6e383e071b1bb5
         with:
           python-version: '3.14'
       - name: Spelling
