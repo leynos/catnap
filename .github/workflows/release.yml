@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: leynos/shared-actions/.github/actions/setup-rust@47aea18960d24f33aedc4782ec6b73e365418313
+      - uses: leynos/shared-actions/.github/actions/setup-rust@19a7f5d1b8d5c1b2236c39720a5744492b3fc129
         with:
           toolchain: stable
       - name: Cache cross binary
@@ -105,7 +105,7 @@ jobs:
       - uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
           path: artifacts
-      - uses: softprops/action-gh-release@132dbbba49e22bd4837f09b46d32a8edaf6baa58
+      - uses: softprops/action-gh-release@5a6f51711ce2ba103b78f5e9550f810679f11e0e
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
