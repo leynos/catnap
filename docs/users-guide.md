@@ -24,6 +24,10 @@ Multiple operands are summed, matching GNU `sleep` style:
 catnap 1m 5s
 ```
 
+Durations must remain separate operands: write `catnap 5h 20m`, not
+`catnap 5h20m`. When otherwise valid operands are accidentally concatenated,
+the diagnostic suggests the whitespace-separated form.
+
 The command accepts `--help` and `--version`. Invalid operands, missing
 operands, unsupported suffixes, and unknown options are reported to standard
 error with a non-zero exit status.

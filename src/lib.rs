@@ -23,6 +23,7 @@ const HELP: &str = concat!(
     "  m  minutes\n",
     "  h  hours\n",
     "  d  days\n\n",
+    "Durations are separate operands: 5h 20m, not 5h20m.\n\n",
     "Options:\n",
     "      --help     display this help and exit\n",
     "      --version  output version information and exit\n",

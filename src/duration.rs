@@ -32,6 +32,17 @@ pub enum DurationParseError {
         /// Operand text received from the command line.
         operand: String,
     },
+    /// An operand concatenated otherwise valid duration operands.
+    #[error(
+        "invalid time interval '{operand}'\ncatnap: durations are separate operands; did you mean \
+         'catnap {suggestion}'?"
+    )]
+    CompoundOperand {
+        /// Operand text received from the command line.
+        operand: String,
+        /// Equivalent duration operands separated by spaces.
+        suggestion: String,
+    },
     /// An operand was too precise for nanosecond storage.
     #[error("time interval '{operand}' has more than nanosecond precision")]
     TooPrecise {
@@ -128,7 +139,32 @@ fn parse_operand_nanos(operand: &str) -> Result<u128, DurationParseError> {
     }
 
     let (number, unit) = split_number_and_unit(operand)?;
-    parse_decimal_nanos(number, unit, operand)
+    parse_decimal_nanos(number, unit, operand).map_err(|error| {
+        compound_operand_suggestion(operand).map_or(error, |suggestion| {
+            DurationParseError::CompoundOperand {
+                operand: operand.to_owned(),
+                suggestion,
+            }
+        })
+    })
+}
+
+fn compound_operand_suggestion(operand: &str) -> Option<String> {
+    let parts = operand
+        .split_inclusive(['s', 'm', 'h', 'd'])
+        .collect::<Vec<_>>();
+
+    if parts.len() < 2 || !parts.iter().all(|part| is_valid_duration_operand(part)) {
+        return None;
+    }
+
+    Some(parts.join(" "))
+}
+
+fn is_valid_duration_operand(operand: &str) -> bool {
+    split_number_and_unit(operand)
+        .and_then(|(number, unit)| parse_decimal_nanos(number, unit, operand))
+        .is_ok()
 }
 
 fn split_number_and_unit(operand: &str) -> Result<(&str, u128), DurationParseError> {
@@ -291,6 +327,27 @@ mod tests {
         vec!["1w".to_owned()],
         DurationParseError::InvalidSuffix {
             operand: "1w".to_owned()
+        }
+    )]
+    #[case::compound_hours_and_minutes(
+        vec!["5h20m".to_owned()],
+        DurationParseError::CompoundOperand {
+            operand: "5h20m".to_owned(),
+            suggestion: "5h 20m".to_owned()
+        }
+    )]
+    #[case::compound_hours_and_seconds(
+        vec!["1h30s".to_owned()],
+        DurationParseError::CompoundOperand {
+            operand: "1h30s".to_owned(),
+            suggestion: "1h 30s".to_owned()
+        }
+    )]
+    #[case::compound_minutes_and_bare_seconds(
+        vec!["1m30".to_owned()],
+        DurationParseError::CompoundOperand {
+            operand: "1m30".to_owned(),
+            suggestion: "1m 30".to_owned()
         }
     )]
     #[case::too_precise(

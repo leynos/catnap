@@ -34,6 +34,13 @@ fn compiled_binary_exposes_gnu_like_sleep_behaviour() -> Result<(), Box<dyn std:
             "catnap: invalid time suffix in '1w'",
         ));
 
+    Command::new(&binary)
+        .arg("5h20m")
+        .assert()
+        .code(1)
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("did you mean 'catnap 5h 20m'?"));
+
     Ok(())
 }
 
