@@ -50,6 +50,31 @@ The test suite covers the same behaviour from several angles:
   output.
 - End-to-end tests in `tests/e2e.rs` build and run the compiled binary with
   accelerated logical seconds.
+- Executable UI tests in `tests/ui/` compile against the public crate boundary
+  and pin the user-facing `Display` output of public error types.
+
+### Public error UI tests
+
+The `tests/ui.rs` harness uses `trybuild` to compile and execute every
+`tests/ui/*_display.rs` fixture as an external crate. These fixtures use
+`trybuild`'s pass mode because Rust evaluates `Display` implementations at
+runtime. A compile-fail fixture can snapshot compiler diagnostics, but it
+cannot observe an error value's formatted output.
+
+Treat each expected string literal in a display fixture as a UI snapshot. When
+adding a public error type or variant, add an assertion with representative
+field values to the corresponding fixture, or add a new `*_display.rs` file.
+Run the focused harness with:
+
+```sh
+cargo test --test ui
+```
+
+`make test` also discovers the harness and is the required pre-commit and CI
+entrypoint. If an intentional wording change alters a message, update the
+expected literal in the same commit and review the string diff deliberately.
+These executable fixtures do not use adjacent `.stderr` files, so
+`TRYBUILD=overwrite` is not part of this snapshot workflow.
 
 ## Spelling gate
 

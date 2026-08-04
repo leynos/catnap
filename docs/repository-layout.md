@@ -39,7 +39,10 @@ omits build output such as `target/`.
 │   ├── e2e.rs
 │   ├── features/
 │   │   └── sleep_cli.feature
-│   └── snapshots.rs
+│   ├── snapshots.rs
+│   ├── ui.rs
+│   └── ui/
+│       └── ...
 ├── AGENTS.md
 ├── Cargo.toml
 ├── LICENSE
@@ -96,6 +99,8 @@ omits build output such as `target/`.
   scenarios.
 - `tests/snapshots.rs`: Pins representative locale-aware remaining-time
   output.
+- `tests/ui.rs`: Compiles and executes public error display UI fixtures.
+- `tests/ui/`: Holds external-crate fixtures that pin user-facing error text.
 - `AGENTS.md`: Provides repository-specific working instructions for agents and
   contributors.
 - `Cargo.toml`: Defines package metadata, dependencies, lint policy, and Cargo
