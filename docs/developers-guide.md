@@ -33,6 +33,11 @@ The runner depends on the `MonotonicClock` trait rather than calling
 `std::time::Instant` directly. Production code uses `RealMonotonicClock`; tests
 use `mockall` to verify runner behaviour with deterministic monotonic time.
 
+Duration suffix metadata is owned by `UNITS` in `src/duration.rs`. All duration
+parsing and compound-operand boundary detection must use this table rather than
+maintaining separate suffix lists. Keep suffix composition inside the duration
+module; callers supply complete operands and consume typed parse results.
+
 End-to-end tests use the hidden `--logical-second-ms` argument to shorten one
 logical second to a small real duration. This argument is private test support:
 it is intentionally omitted from normal help output and must not be documented
@@ -42,8 +47,9 @@ as a user-facing option.
 
 The test suite covers the same behaviour from several angles:
 
-- Unit tests in `src/duration.rs`, `src/format.rs`, and `src/runner.rs` cover
-  parsing, cadence selection, locale formatting, and mock-clock orchestration.
+- Unit tests in `src/duration_tests.rs`, `src/format.rs`, and `src/runner.rs`
+  cover parsing, cadence selection, locale formatting, and mock-clock
+  orchestration.
 - Behavioural tests in `tests/behaviour.rs` use `rstest-bdd` scenarios from
   `tests/features/sleep_cli.feature`.
 - Snapshot tests in `tests/snapshots.rs` pin representative remaining-time
