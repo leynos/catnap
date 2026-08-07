@@ -99,8 +99,10 @@ omits build output such as `target/`.
   scenarios.
 - `tests/snapshots.rs`: Pins representative locale-aware remaining-time
   output.
-- `tests/ui.rs`: Compiles and executes public error display UI fixtures.
-- `tests/ui/`: Holds external-crate fixtures that pin user-facing error text.
+- `tests/ui.rs`: Runs the `trybuild` UI fixtures in pass and compile-fail modes.
+- `tests/ui/`: Holds external-crate fixtures that pin user-facing error text
+  (`*_display.rs`) and the non-exhaustive matching contract of the public error
+  enums (`*_non_exhaustive.rs`, with adjacent `.stderr` snapshots).
 - `AGENTS.md`: Provides repository-specific working instructions for agents and
   contributors.
 - `Cargo.toml`: Defines package metadata, dependencies, lint policy, and Cargo

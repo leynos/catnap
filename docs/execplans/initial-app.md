@@ -120,6 +120,17 @@ test bodies rather than shared production paths.
   `make test`, `make markdownlint`, and `make nixie`.
 - [x] 2026-06-01: Committed the validated implementation as `10273a6`.
 - [x] 2026-06-01: Completion-audited the objective against the current tree.
+- [x] 2026-08-08: Added the `trybuild` UI harness for issue
+  [#8](https://github.com/leynos/catnap/issues/8), pinning the public error
+  surface at the crate boundary.
+- [x] 2026-08-08: Added pass-mode display fixtures for `CliError`,
+  `DurationParseError`, and `ClockConfigError`.
+- [x] 2026-08-08: Added compile-fail fixtures with `.stderr` snapshots pinning
+  `#[non_exhaustive]` on all three public error enums.
+- [x] 2026-08-08: Documented the UI test workflow in the developers' guide and
+  fixture ownership in the repository layout.
+- [x] 2026-08-08: `make test` passed with 27 tests across six binaries, and
+  `cargo test --doc` passed with 14 doctests.
 
 Completed implementation checklist:
 
@@ -131,6 +142,8 @@ Completed implementation checklist:
 - [x] Add snapshot tests using `insta`.
 - [x] Add end-to-end tests that use the hidden logical-second duration
   argument.
+- [x] Add `trybuild` UI tests pinning the public error types' `Display` output
+  and non-exhaustive matching contract.
 
 ## Surprises & Discoveries
 
@@ -152,7 +165,26 @@ build the binary in this configured split target/build directory. The e2e test
 therefore builds `vsleep` explicitly and reads `target_directory` from
 `cargo metadata` before running the compiled binary.
 
+`trybuild` cannot express issue
+[#8](https://github.com/leynos/catnap/issues/8) as written. The issue asks for
+compile-fail tests covering `Display` output, but Rust evaluates `Display` at
+runtime, so a compile-fail fixture only ever captures compiler diagnostics and
+never sees a formatted message. Splitting the harness across both modes was the
+only way to cover the whole request.
+
 ## Decision Log
+
+2026-08-08: Pin public error messages with `trybuild` pass fixtures rather than
+compile-fail fixtures. Pass fixtures compile *and execute* as external crates,
+so they exercise the real public boundary and assert the actual message text.
+This is the only mode that can observe `Display` output.
+
+2026-08-08: Additionally pin `#[non_exhaustive]` on each public error enum with
+compile-fail fixtures. Message text and API stability are separate guarantees:
+the compile-fail snapshots catch the removal of `#[non_exhaustive]`, which would
+silently make every later variant addition a breaking change for downstream
+crates. The `.stderr` snapshots are tied to the toolchain pinned in
+`rust-toolchain.toml` and are regenerated with `TRYBUILD=overwrite`.
 
 2026-06-01: Use `src/lib.rs` for reusable command, parsing, formatting, and
 clock logic, and keep `src/main.rs` as a thin process boundary. This makes
@@ -269,6 +301,22 @@ Completion audit on 2026-06-01:
 - Gates: satisfied by final cleaned-tree runs of `make check-fmt`,
   `make lint`, `make test`, `make markdownlint`, and `make nixie`.
 
+Public error UI tests landed on 2026-08-08 for issue
+[#8](https://github.com/leynos/catnap/issues/8):
+
+- `trybuild` integration: satisfied by the test-only dependency in `Cargo.toml`
+  and the `tests/ui.rs` harness, which standard Cargo test discovery runs.
+- Display coverage: satisfied by `tests/ui/cli_error_display.rs`,
+  `tests/ui/duration_parse_error_display.rs`, and
+  `tests/ui/clock_config_error_display.rs`, which compile as external crates and
+  assert every public variant's message.
+- Compile-fail coverage: satisfied by the `tests/ui/*_non_exhaustive.rs`
+  fixtures and their `.stderr` snapshots, which pin `E0004` for each public
+  error enum.
+- Documentation: satisfied by the UI test sections of
+  [developers' guide](../developers-guide.md) and
+  [repository layout](../repository-layout.md).
+
 Planning validation passed on 2026-06-01:
 
 ```plaintext
@@ -329,4 +377,29 @@ Summary: 0 error(s)
 
 make nixie 2>&1 | tee /tmp/nixie-vsleep-initial-app-final2.out
 All diagrams validated successfully
+```
+
+Public error UI test validation passed on 2026-08-08:
+
+```plaintext
+make check-fmt
+cargo fmt --all -- --check
+
+make lint
+Finished `dev` profile
+
+make typecheck
+cargo check --all-targets --all-features
+
+make test
+Summary [   ...] 27 tests run: 27 passed, 0 skipped
+
+make markdownlint
+Summary: 0 error(s)
+
+make nixie
+All diagrams validated successfully
+
+cargo test --doc
+test result: ok. 14 passed; 0 failed; 0 ignored
 ```

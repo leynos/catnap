@@ -2,10 +2,12 @@
 
 use catnap::{CliError, DurationParseError};
 
+/// Asserts that an error renders exactly the pinned user-facing message.
 fn assert_display(error: CliError, expected: &str) {
     assert_eq!(error.to_string(), expected);
 }
 
+/// Checks every public `CliError` variant against its pinned message.
 fn main() {
     assert_display(CliError::NonUnicodeArgument, "invalid non-Unicode argument");
     assert_display(

@@ -2,10 +2,12 @@
 
 use catnap::DurationParseError;
 
+/// Asserts that an error renders exactly the pinned user-facing message.
 fn assert_display(error: DurationParseError, expected: &str) {
     assert_eq!(error.to_string(), expected);
 }
 
+/// Checks every public `DurationParseError` variant against its pinned message.
 fn main() {
     assert_display(DurationParseError::MissingOperand, "missing operand");
     assert_display(

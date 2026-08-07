@@ -2,6 +2,7 @@
 
 use catnap::ClockConfigError;
 
+/// Checks every public `ClockConfigError` variant against its pinned message.
 fn main() {
     assert_eq!(
         ClockConfigError::ZeroLogicalSecond.to_string(),

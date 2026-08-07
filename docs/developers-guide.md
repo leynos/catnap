@@ -50,20 +50,26 @@ The test suite covers the same behaviour from several angles:
   output.
 - End-to-end tests in `tests/e2e.rs` build and run the compiled binary with
   accelerated logical seconds.
-- Executable UI tests in `tests/ui/` compile against the public crate boundary
-  and pin the user-facing `Display` output of public error types.
+- UI tests in `tests/ui/` compile against the public crate boundary, pin the
+  user-facing `Display` output of public error types, and pin the compiler
+  diagnostics that keep those error enums non-exhaustive.
 
 ### Public error UI tests
 
-The `tests/ui.rs` harness uses `trybuild` to compile and execute every
-`tests/ui/*_display.rs` fixture as an external crate. These fixtures use
-`trybuild`'s pass mode because Rust evaluates `Display` implementations at
-runtime. A compile-fail fixture can snapshot compiler diagnostics, but it
-cannot observe an error value's formatted output.
+The `tests/ui.rs` harness uses `trybuild` in two complementary modes, each
+covering what the other cannot.
 
-Treat each expected string literal in a display fixture as a UI snapshot. When
-adding a public error type or variant, add an assertion with representative
-field values to the corresponding fixture, or add a new `*_display.rs` file.
+Pass fixtures, `tests/ui/*_display.rs`, are compiled and executed as external
+crates. Pass mode is required for message text: Rust evaluates `Display`
+implementations at runtime, so a compile-fail fixture can snapshot compiler
+diagnostics but never observes an error value's formatted output.
+
+Compile-fail fixtures, `tests/ui/*_non_exhaustive.rs`, match every public
+variant of an error enum without a wildcard arm. Each is expected to fail with
+`E0004`, which pins `#[non_exhaustive]` on `CliError`, `DurationParseError`,
+and `ClockConfigError`. That contract is what keeps adding an error variant a
+non-breaking change for downstream crates.
+
 Run the focused harness with:
 
 ```sh
@@ -71,10 +77,33 @@ cargo test --test ui
 ```
 
 `make test` also discovers the harness and is the required pre-commit and CI
-entrypoint. If an intentional wording change alters a message, update the
-expected literal in the same commit and review the string diff deliberately.
-These executable fixtures do not use adjacent `.stderr` files, so
-`TRYBUILD=overwrite` is not part of this snapshot workflow.
+entrypoint.
+
+#### Updating display fixtures
+
+Treat each expected string literal in a display fixture as a UI snapshot. When
+adding a public error type or variant, add an assertion with representative
+field values to the corresponding fixture, or add a new `*_display.rs` file. If
+an intentional wording change alters a message, update the expected literal in
+the same commit and review the string diff deliberately. Display fixtures have
+no adjacent `.stderr` file, so `TRYBUILD=overwrite` does not maintain them.
+
+#### Updating compile-fail snapshots
+
+Each `*_non_exhaustive.rs` fixture has an adjacent `.stderr` file holding the
+expected diagnostic. Add every new variant to the fixture's `match`, then
+regenerate the snapshot with:
+
+```sh
+TRYBUILD=overwrite cargo test --test ui
+```
+
+Review the regenerated diagnostic before committing. Because the snapshots
+capture compiler output, they are tied to the toolchain pinned in
+`rust-toolchain.toml`; a toolchain bump that rewords `E0004` requires the same
+regeneration step. A fixture that starts *passing* means the enum has lost
+`#[non_exhaustive]`, which is a breaking change rather than a snapshot to
+refresh.
 
 ## Spelling gate
 
