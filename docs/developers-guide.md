@@ -37,6 +37,15 @@ Duration suffix metadata is owned by `UNITS` in `src/duration.rs`. All duration
 parsing and compound-operand boundary detection must use this table rather than
 maintaining separate suffix lists. Keep suffix composition inside the duration
 module; callers supply complete operands and consume typed parse results.
+`src/duration_number.rs` handles only the numeric part of an operand: it
+receives a nanosecond multiplier from the duration module and never inspects
+suffix spelling.
+
+`DurationParseError` variants describe the domain fault alone. Advisory text
+that names the command or its syntax — such as the compound-operand "did you
+mean" line — belongs in `write_cli_error` in `src/lib.rs`, which reads the
+structured `suggestion` field. Adding command wording to an error's `#[error]`
+display string would leak the command-line layer into the domain.
 
 End-to-end tests use the hidden `--logical-second-ms` argument to shorten one
 logical second to a small real duration. This argument is private test support:
@@ -50,6 +59,9 @@ The test suite covers the same behaviour from several angles:
 - Unit tests in `src/duration_tests.rs`, `src/format.rs`, and `src/runner.rs`
   cover parsing, cadence selection, locale formatting, and mock-clock
   orchestration.
+- Property tests in `src/duration_tests.rs` use `proptest` to build compound
+  operands from generated components and check that the suggested rewrite
+  splits back into those components and parses to the same duration.
 - Behavioural tests in `tests/behaviour.rs` use `rstest-bdd` scenarios from
   `tests/features/sleep_cli.feature`.
 - Snapshot tests in `tests/snapshots.rs` pin representative remaining-time

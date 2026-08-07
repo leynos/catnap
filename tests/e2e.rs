@@ -34,12 +34,18 @@ fn compiled_binary_exposes_gnu_like_sleep_behaviour() -> Result<(), Box<dyn std:
             "catnap: invalid time suffix in '1w'",
         ));
 
+    // The compound-operand advice is assembled by the command-line layer, so
+    // assert the whole diagnostic rather than the suggestion line alone.
     Command::new(&binary)
         .arg("5h20m")
         .assert()
         .code(1)
         .stdout(predicate::str::is_empty())
-        .stderr(predicate::str::contains("did you mean 'catnap 5h 20m'?"));
+        .stderr(predicate::str::diff(concat!(
+            "catnap: invalid time interval '5h20m'\n",
+            "catnap: durations are separate operands; did you mean 'catnap 5h 20m'?\n",
+            "Try 'catnap --help' for more information.\n",
+        )));
 
     Ok(())
 }

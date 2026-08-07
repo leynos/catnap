@@ -95,6 +95,7 @@ assert_cmd = "2.2.2"
 insta = "1.47.2"
 mockall = "0.14.0"
 predicates = "3.1.4"
+proptest = { version = "1.11.0", default-features = false, features = ["std"] }
 rstest = "0.26.1"
 rstest-bdd = "0.5.0"
 rstest-bdd-macros = "0.5.0"

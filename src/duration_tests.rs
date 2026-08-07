@@ -2,9 +2,10 @@
 
 use std::time::Duration;
 
+use proptest::prelude::*;
 use rstest::rstest;
 
-use super::{DurationParseError, parse_sleep_duration, report_interval};
+use super::{DurationParseError, UNITS, parse_sleep_duration, report_interval};
 
 #[rstest]
 #[case::seconds("2", Duration::from_secs(2))]
@@ -62,6 +63,134 @@ fn suggests_full_command_for_compound_operand(#[case] operand: &str, #[case] sug
             suggestion: suggestion.to_owned()
         })
     );
+}
+
+#[rstest]
+#[case::seconds("s")]
+#[case::minutes("m")]
+#[case::hours("h")]
+#[case::days("d")]
+fn suggests_separate_operands_for_every_supported_unit(#[case] suffix: &str) {
+    let operand = format!("2{suffix}3{suffix}");
+    let parsed = parse_sleep_duration(std::slice::from_ref(&operand));
+    assert_eq!(
+        parsed,
+        Err(DurationParseError::CompoundOperand {
+            operand,
+            suggestion: format!("2{suffix} 3{suffix}"),
+        })
+    );
+}
+
+/// Guard the single-character assumption baked into the compound strategy.
+///
+/// [`compound_components`] concatenates suffixes without disambiguation, which
+/// is safe only while every suffix is one ASCII letter. Adding a
+/// multi-character suffix to `UNITS` must fail here so that longest-match
+/// coverage is added deliberately rather than assumed.
+#[test]
+fn unit_suffixes_are_single_ascii_letters() {
+    for (suffix, _) in UNITS {
+        assert_eq!(suffix.len(), 1, "suffix '{suffix}' is not one byte long");
+        assert!(
+            suffix
+                .chars()
+                .all(|character| character.is_ascii_alphabetic()),
+            "suffix '{suffix}' is not an ASCII letter"
+        );
+    }
+}
+
+/// Generate a run of one to nine fractional digits.
+///
+/// The parser rejects anything finer than nanosecond precision, so the run is
+/// capped at the nine digits a fraction of a second can hold.
+fn fraction_digits() -> impl Strategy<Value = String> {
+    proptest::collection::vec(0_u8..10, 1..=9).prop_map(|digits| {
+        digits
+            .into_iter()
+            .map(|digit| char::from(b'0' + digit))
+            .collect()
+    })
+}
+
+/// Generate every number form the duration parser accepts.
+///
+/// Whole values stay below one thousand so that four components of days still
+/// sum well inside the supported duration range.
+fn number_text() -> impl Strategy<Value = String> {
+    prop_oneof![
+        (0_u32..1_000).prop_map(|whole| whole.to_string()),
+        (0_u32..1_000, fraction_digits())
+            .prop_map(|(whole, fraction)| format!("{whole}.{fraction}")),
+        fraction_digits().prop_map(|fraction| format!(".{fraction}")),
+        (0_u32..1_000).prop_map(|whole| format!("{whole}.")),
+    ]
+}
+
+/// Generate a suffix drawn from the shared [`UNITS`] metadata.
+fn unit_suffix() -> impl Strategy<Value = &'static str> {
+    proptest::sample::select(UNITS.map(|(suffix, _)| suffix).to_vec())
+}
+
+/// Generate the components of a compound operand, in order.
+///
+/// Only the final component may omit its suffix: a bare number anywhere else
+/// would run into the following component's digits and form a single larger
+/// number rather than two operands.
+fn compound_components() -> impl Strategy<Value = Vec<String>> {
+    (
+        proptest::collection::vec((number_text(), unit_suffix()), 1..4),
+        number_text(),
+        proptest::option::of(unit_suffix()),
+    )
+        .prop_map(|(leading, final_number, final_suffix)| {
+            let mut components = leading
+                .into_iter()
+                .map(|(number, suffix)| format!("{number}{suffix}"))
+                .collect::<Vec<_>>();
+            components.push(format!(
+                "{final_number}{}",
+                final_suffix.unwrap_or_default()
+            ));
+            components
+        })
+}
+
+/// Sum each component parsed on its own, independently of the rewrite.
+fn sum_components(components: &[String]) -> Result<Duration, DurationParseError> {
+    components.iter().try_fold(Duration::ZERO, |total, part| {
+        parse_sleep_duration(std::slice::from_ref(part)).map(|parsed| total + parsed)
+    })
+}
+
+proptest! {
+    /// Every rejected compound operand suggests an equivalent operand list.
+    #[test]
+    fn compound_operand_suggestion_round_trips(components in compound_components()) {
+        let compound = components.concat();
+        let Err(DurationParseError::CompoundOperand { operand, suggestion }) =
+            parse_sleep_duration(std::slice::from_ref(&compound))
+        else {
+            return Err(TestCaseError::fail(format!(
+                "'{compound}' should be rejected as a compound operand"
+            )));
+        };
+        prop_assert_eq!(&operand, &compound);
+
+        let separated = suggestion
+            .split_ascii_whitespace()
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        prop_assert_eq!(&separated, &components);
+
+        let Ok(expected) = sum_components(&components) else {
+            return Err(TestCaseError::fail(format!(
+                "components of '{compound}' should each parse in isolation"
+            )));
+        };
+        prop_assert_eq!(parse_sleep_duration(&separated), Ok(expected));
+    }
 }
 
 #[test]

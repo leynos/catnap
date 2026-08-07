@@ -3,6 +3,7 @@
 mod cli;
 mod clock;
 mod duration;
+mod duration_number;
 mod format;
 mod runner;
 
@@ -94,13 +95,25 @@ where
     }
 }
 
+/// Render a usage error, appending compound-operand advice where available.
+///
+/// [`DurationParseError`] deliberately reports only domain language, so the
+/// command-specific "did you mean" line is composed here.
 fn write_cli_error<E>(error: &CliError, stderr: &mut E) -> ExitCode
 where
     E: Write,
 {
+    let advice = match error {
+        CliError::Duration(DurationParseError::CompoundOperand { suggestion, .. }) => {
+            format!(
+                "catnap: durations are separate operands; did you mean 'catnap {suggestion}'?\n"
+            )
+        }
+        _ => String::new(),
+    };
     write_error(
         stderr,
-        &format!("catnap: {error}\nTry 'catnap --help' for more information.\n"),
+        &format!("catnap: {error}\n{advice}Try 'catnap --help' for more information.\n"),
     )
 }
 
