@@ -1,6 +1,7 @@
 target/
 **/*.rs.bk
 __pycache__/
+.coverage
 
 # Local spelling-policy caches and helper tool state
 .uv-cache/

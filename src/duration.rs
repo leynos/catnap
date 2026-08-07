@@ -2,10 +2,22 @@
 
 use std::time::Duration;
 
-const NANOS_PER_SECOND: u128 = 1_000_000_000;
+use crate::duration_number::{NANOS_PER_SECOND, duration_from_total_nanos, parse_decimal_nanos};
+
 const NANOS_PER_MINUTE: u128 = NANOS_PER_SECOND * 60;
 const NANOS_PER_HOUR: u128 = NANOS_PER_MINUTE * 60;
 const NANOS_PER_DAY: u128 = NANOS_PER_HOUR * 24;
+const UNITS: [(&str, u128); 4] = [
+    ("s", NANOS_PER_SECOND),
+    ("m", NANOS_PER_MINUTE),
+    ("h", NANOS_PER_HOUR),
+    ("d", NANOS_PER_DAY),
+];
+
+enum ParsedOperand {
+    Single(u128),
+    Compound { nanos: u128, replacement: String },
+}
 
 /// Error returned when parsing a GNU-like sleep operand fails.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -31,6 +43,17 @@ pub enum DurationParseError {
     InvalidNumber {
         /// Operand text received from the command line.
         operand: String,
+    },
+    /// An operand concatenated otherwise valid duration operands.
+    ///
+    /// The display text stays in domain language; presenting `suggestion` as
+    /// advice is the command-line layer's responsibility.
+    #[error("invalid time interval '{operand}'")]
+    CompoundOperand {
+        /// Operand text received from the command line.
+        operand: String,
+        /// Complete equivalent operand list, separated by spaces.
+        suggestion: String,
     },
     /// An operand was too precise for nanosecond storage.
     #[error("time interval '{operand}' has more than nanosecond precision")]
@@ -70,16 +93,44 @@ pub fn parse_sleep_duration(operands: &[String]) -> Result<Duration, DurationPar
         return Err(DurationParseError::MissingOperand);
     }
 
-    let mut total = 0_u128;
-    for operand in operands {
-        let nanos = parse_operand_nanos(operand)?;
-        total = total
+    let parsed = operands
+        .iter()
+        .map(|operand| parse_operand(operand))
+        .collect::<Result<Vec<_>, _>>()?;
+    let total = parsed.iter().try_fold(0_u128, |total, operand| {
+        let nanos = match operand {
+            ParsedOperand::Single(nanos) | ParsedOperand::Compound { nanos, .. } => *nanos,
+        };
+        total
             .checked_add(nanos)
             .ok_or_else(|| DurationParseError::Overflow {
-                operand: operand.clone(),
-            })?;
+                operand: "total".to_owned(),
+            })
+    })?;
+    let duration = duration_from_total_nanos(total, "total".to_owned())?;
+
+    if let Some((compound_operand, _)) = operands
+        .iter()
+        .zip(&parsed)
+        .find(|(_, parsed_operand)| matches!(parsed_operand, ParsedOperand::Compound { .. }))
+    {
+        let compound_text = compound_operand.clone();
+        let suggestion = operands
+            .iter()
+            .zip(parsed)
+            .map(|(operand, parsed_operand)| match parsed_operand {
+                ParsedOperand::Single(_) => operand.clone(),
+                ParsedOperand::Compound { replacement, .. } => replacement,
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        return Err(DurationParseError::CompoundOperand {
+            operand: compound_text,
+            suggestion,
+        });
     }
-    duration_from_total_nanos(total, "total".to_owned())
+
+    Ok(duration)
 }
 
 /// Select the progress reporting interval for a requested sleep duration.
@@ -115,7 +166,17 @@ pub fn report_interval(total: Duration) -> Duration {
     }
 }
 
-fn parse_operand_nanos(operand: &str) -> Result<u128, DurationParseError> {
+/// Validate an operand's overall shape, then parse its components.
+///
+/// GNU `sleep` accepts neither empty nor explicitly signed operands, so those
+/// are rejected before component parsing sees them.
+///
+/// # Errors
+///
+/// Returns [`DurationParseError::EmptyOperand`] for empty text,
+/// [`DurationParseError::InvalidNumber`] for a leading `-` or `+`, and
+/// otherwise whichever error [`parse_operand_components`] reports.
+fn parse_operand(operand: &str) -> Result<ParsedOperand, DurationParseError> {
     if operand.is_empty() {
         return Err(DurationParseError::EmptyOperand {
             operand: operand.to_owned(),
@@ -127,191 +188,129 @@ fn parse_operand_nanos(operand: &str) -> Result<u128, DurationParseError> {
         });
     }
 
-    let (number, unit) = split_number_and_unit(operand)?;
+    parse_operand_components(operand)
+}
+
+/// Parse an operand once, returning a rewrite only for multiple valid parts.
+///
+/// For example, `5h20m` yields a compound replacement of `5h 20m`, while
+/// `5h20x` retains its ordinary invalid-suffix error.
+fn parse_operand_components(operand: &str) -> Result<ParsedOperand, DurationParseError> {
+    let mut parts = Vec::new();
+    let mut total = 0_u128;
+    let mut remaining = operand;
+
+    while let Some((number, suffix, unit, rest)) = next_unit(remaining) {
+        let Ok(nanos) = parse_decimal_nanos(number, unit, operand) else {
+            return parse_simple_operand(operand, operand).map(ParsedOperand::Single);
+        };
+        total = checked_add_nanos(total, nanos, operand)?;
+        parts.push(format!("{number}{suffix}"));
+        remaining = rest;
+    }
+
+    if !remaining.is_empty() {
+        let nanos = parse_simple_operand(remaining, operand)?;
+        total = checked_add_nanos(total, nanos, operand)?;
+        parts.push(remaining.to_owned());
+    }
+
+    if parts.len() > 1 {
+        Ok(ParsedOperand::Compound {
+            nanos: total,
+            replacement: parts.join(" "),
+        })
+    } else {
+        Ok(ParsedOperand::Single(total))
+    }
+}
+
+/// Split the leading `NUMBER SUFFIX` pair from `text`.
+///
+/// Scans left to right for the earliest position at which a [`UNITS`] suffix
+/// begins, preferring the longest suffix that matches there. Yields the number
+/// text, the matched suffix, its nanosecond multiplier and the unconsumed
+/// remainder, or `None` when `text` holds no suffix at all.
+fn next_unit(text: &str) -> Option<(&str, &'static str, u128, &str)> {
+    text.char_indices().find_map(|(index, _)| {
+        let (number, suffix_and_rest) = text.split_at(index);
+        UNITS
+            .iter()
+            .filter_map(|&(suffix, unit)| {
+                suffix_and_rest
+                    .strip_prefix(suffix)
+                    .map(|rest| (number, suffix, unit, rest))
+            })
+            .max_by_key(|(_, suffix, ..)| suffix.len())
+    })
+}
+
+/// Parse a lone `NUMBER[SUFFIX]` fragment into nanoseconds.
+///
+/// `text` is the fragment under inspection; `operand` is the complete operand
+/// quoted in errors, which differ once a compound operand is being rewritten.
+///
+/// # Errors
+///
+/// Returns [`DurationParseError::InvalidSuffix`] for an unsupported suffix, or
+/// whichever error [`parse_decimal_nanos`] reports for the number.
+fn parse_simple_operand(text: &str, operand: &str) -> Result<u128, DurationParseError> {
+    let (number, unit) = split_number_and_unit(text, operand)?;
     parse_decimal_nanos(number, unit, operand)
 }
 
-fn split_number_and_unit(operand: &str) -> Result<(&str, u128), DurationParseError> {
-    for (suffix, unit) in [
-        ('s', NANOS_PER_SECOND),
-        ('m', NANOS_PER_MINUTE),
-        ('h', NANOS_PER_HOUR),
-        ('d', NANOS_PER_DAY),
-    ] {
-        if let Some(number) = operand.strip_suffix(suffix) {
-            return Ok((number, unit));
-        }
+/// Add `nanos` to `total`, attributing any overflow to `operand`.
+///
+/// # Errors
+///
+/// Returns [`DurationParseError::Overflow`] when the sum exceeds [`u128`].
+fn checked_add_nanos(total: u128, nanos: u128, operand: &str) -> Result<u128, DurationParseError> {
+    total
+        .checked_add(nanos)
+        .ok_or_else(|| DurationParseError::Overflow {
+            operand: operand.to_owned(),
+        })
+}
+
+/// Split `text` into its number text and nanosecond multiplier.
+///
+/// Prefers the longest matching [`UNITS`] suffix and falls back to seconds when
+/// `text` ends in a digit or `.`; `operand` supplies the text quoted in errors.
+///
+/// # Errors
+///
+/// Returns [`DurationParseError::InvalidSuffix`] when `text` ends in an
+/// unrecognized letter, and [`DurationParseError::EmptyOperand`] when `text` is
+/// empty.
+fn split_number_and_unit<'a>(
+    text: &'a str,
+    operand: &str,
+) -> Result<(&'a str, u128), DurationParseError> {
+    if let Some((number, unit)) = UNITS
+        .iter()
+        .filter_map(|&(suffix, unit)| {
+            text.strip_suffix(suffix)
+                .map(|number| (number, unit, suffix))
+        })
+        .max_by_key(|(_, _, suffix)| suffix.len())
+        .map(|(number, unit, _)| (number, unit))
+    {
+        return Ok((number, unit));
     }
 
-    match operand.chars().next_back() {
+    match text.chars().next_back() {
         Some(character) if character.is_ascii_alphabetic() => {
             Err(DurationParseError::InvalidSuffix {
                 operand: operand.to_owned(),
             })
         }
-        Some(_) => Ok((operand, NANOS_PER_SECOND)),
+        Some(_) => Ok((text, NANOS_PER_SECOND)),
         None => Err(DurationParseError::EmptyOperand {
             operand: operand.to_owned(),
         }),
     }
 }
 
-fn parse_decimal_nanos(
-    number: &str,
-    unit: u128,
-    operand: &str,
-) -> Result<u128, DurationParseError> {
-    let (whole_text, fraction_text) = decimal_parts(number);
-    let whole = parse_digit_text(whole_text, operand)?;
-    let fraction = parse_fraction_nanos(fraction_text, unit, operand)?;
-    let whole_nanos = whole
-        .checked_mul(unit)
-        .ok_or_else(|| DurationParseError::Overflow {
-            operand: operand.to_owned(),
-        })?;
-
-    if whole_text.is_empty() && fraction_text.unwrap_or_default().is_empty() {
-        Err(DurationParseError::InvalidNumber {
-            operand: operand.to_owned(),
-        })
-    } else {
-        whole_nanos
-            .checked_add(fraction)
-            .ok_or_else(|| DurationParseError::Overflow {
-                operand: operand.to_owned(),
-            })
-    }
-}
-
-fn decimal_parts(number: &str) -> (&str, Option<&str>) {
-    match number.split_once('.') {
-        Some((whole, fraction)) => (whole, Some(fraction)),
-        None => (number, None),
-    }
-}
-
-fn parse_digit_text(text: &str, operand: &str) -> Result<u128, DurationParseError> {
-    let mut value = 0_u128;
-    for character in text.chars() {
-        let digit = character
-            .to_digit(10)
-            .ok_or_else(|| DurationParseError::InvalidNumber {
-                operand: operand.to_owned(),
-            })?;
-        value = value
-            .checked_mul(10)
-            .and_then(|current| current.checked_add(u128::from(digit)))
-            .ok_or_else(|| DurationParseError::Overflow {
-                operand: operand.to_owned(),
-            })?;
-    }
-    Ok(value)
-}
-
-fn parse_fraction_nanos(
-    fraction: Option<&str>,
-    unit: u128,
-    operand: &str,
-) -> Result<u128, DurationParseError> {
-    fraction.map_or(Ok(0), |text| fraction_to_nanos(text, unit, operand))
-}
-
-fn fraction_to_nanos(text: &str, unit: u128, operand: &str) -> Result<u128, DurationParseError> {
-    let digits = parse_digit_text(text, operand)?;
-    let scale = fraction_scale(text, operand)?;
-    digits
-        .checked_mul(unit)
-        .and_then(|nanos| nanos.checked_div(scale))
-        .ok_or_else(|| DurationParseError::Overflow {
-            operand: operand.to_owned(),
-        })
-}
-
-fn fraction_scale(text: &str, operand: &str) -> Result<u128, DurationParseError> {
-    let mut scale = 1_u128;
-    for _ in text.chars() {
-        scale = scale
-            .checked_mul(10)
-            .ok_or_else(|| DurationParseError::TooPrecise {
-                operand: operand.to_owned(),
-            })?;
-        if scale > NANOS_PER_SECOND {
-            return Err(DurationParseError::TooPrecise {
-                operand: operand.to_owned(),
-            });
-        }
-    }
-    Ok(scale)
-}
-
-fn duration_from_total_nanos(nanos: u128, operand: String) -> Result<Duration, DurationParseError> {
-    u64::try_from(nanos)
-        .map(Duration::from_nanos)
-        .map_err(|_| DurationParseError::Overflow { operand })
-}
-
 #[cfg(test)]
-mod tests {
-    //! Unit tests for sleep duration parsing and cadence selection.
-
-    use std::time::Duration;
-
-    use rstest::rstest;
-
-    use super::{DurationParseError, parse_sleep_duration, report_interval};
-
-    #[rstest]
-    #[case::seconds("2", Duration::from_secs(2))]
-    #[case::explicit_seconds("2s", Duration::from_secs(2))]
-    #[case::minutes("2m", Duration::from_mins(2))]
-    #[case::hours("2h", Duration::from_hours(2))]
-    #[case::days("2d", Duration::from_hours(48))]
-    #[case::fractional_seconds("1.5", Duration::from_millis(1_500))]
-    fn parses_supported_sleep_operands(#[case] operand: &str, #[case] expected: Duration) {
-        assert_eq!(parse_sleep_duration(&[operand.to_owned()]), Ok(expected));
-    }
-
-    #[test]
-    fn sums_multiple_operands() {
-        assert_eq!(
-            parse_sleep_duration(&["1m".to_owned(), "5s".to_owned()]),
-            Ok(Duration::from_secs(65))
-        );
-    }
-
-    #[rstest]
-    #[case::missing(Vec::<String>::new(), DurationParseError::MissingOperand)]
-    #[case::negative(
-        vec!["-1".to_owned()],
-        DurationParseError::InvalidNumber {
-            operand: "-1".to_owned()
-        }
-    )]
-    #[case::bad_suffix(
-        vec!["1w".to_owned()],
-        DurationParseError::InvalidSuffix {
-            operand: "1w".to_owned()
-        }
-    )]
-    #[case::too_precise(
-        vec!["0.0000000001".to_owned()],
-        DurationParseError::TooPrecise {
-            operand: "0.0000000001".to_owned()
-        }
-    )]
-    fn rejects_invalid_operands(
-        #[case] operands: Vec<String>,
-        #[case] expected: DurationParseError,
-    ) {
-        assert_eq!(parse_sleep_duration(&operands), Err(expected));
-    }
-
-    #[rstest]
-    #[case::twenty(Duration::from_secs(20), Duration::from_secs(1))]
-    #[case::twenty_one(Duration::from_secs(21), Duration::from_secs(5))]
-    #[case::sixty(Duration::from_mins(1), Duration::from_secs(5))]
-    #[case::sixty_one(Duration::from_secs(61), Duration::from_secs(30))]
-    fn selects_progress_interval(#[case] total: Duration, #[case] expected: Duration) {
-        assert_eq!(report_interval(total), expected);
-    }
-}
+#[path = "duration_tests.rs"]
+mod tests;
