@@ -30,6 +30,7 @@ omits build output such as `target/`.
 │   ├── cli.rs
 │   ├── clock.rs
 │   ├── duration.rs
+│   ├── duration_number.rs
 │   ├── format.rs
 │   ├── lib.rs
 │   ├── main.rs
@@ -83,8 +84,10 @@ omits build output such as `target/`.
   e2e-only logical-second argument.
 - `src/clock.rs`: Defines the injectable monotonic clock trait and the real
   `Instant`-backed implementation.
-- `src/duration.rs`: Parses duration operands and selects progress-reporting
-  intervals.
+- `src/duration.rs`: Parses duration operands, owns the suffix metadata, and
+  selects progress-reporting intervals.
+- `src/duration_number.rs`: Converts the numeric part of a duration operand
+  into nanoseconds, independently of suffix spelling.
 - `src/format.rs`: Formats remaining-time progress lines for the selected
   locale.
 - `src/runner.rs`: Coordinates monotonic sleeping and progress output.
