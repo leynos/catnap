@@ -36,7 +36,7 @@ jobs:
           rustup toolchain install "${NETSUKE_TOOLCHAIN}" --profile minimal
           RUSTFLAGS=-Zpolonius=next \
             cargo "+${NETSUKE_TOOLCHAIN}" install --locked \
-            netsuke-build --version "${NETSUKE_VERSION}"
+            netsuke-build --version "=${NETSUKE_VERSION}"
       - name: Install mold linker
         if: runner.os == 'Linux'
         run: |
