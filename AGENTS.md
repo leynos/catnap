@@ -133,33 +133,36 @@ This repository is written in Rust and uses Cargo for building and dependency
 management. Contributors should follow these best practices when working on the
 project:
 
-- Run `make check-fmt`, `make lint`, and `make test` before committing. These
-  targets wrap the following commands, so contributors understand the exact
-  behaviour and policy enforced:
-  - `make check-fmt` executes:
+- Run `netsuke build check-fmt`, `netsuke build lint`, and
+  `netsuke build test` before committing. These actions wrap the following
+  commands, so contributors understand the exact behaviour and policy enforced:
+  - `netsuke build check-fmt` executes:
 
     ```sh
-    cargo fmt --workspace -- --check
+    cargo fmt --all -- --check
     ```
 
     validating formatting across the entire workspace without modifying files.
-  - `make lint` executes:
+  - `netsuke build lint` executes:
 
     ```sh
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+    cargo clippy --all-targets --all-features -- -D warnings
+    RUSTFLAGS="-D warnings" whitaker --all -- --all-targets --all-features
     ```
 
-    linting every target with all features enabled and denying all Clippy
-    warnings.
-  - `make test` executes:
+    linting documentation and every target with all features enabled, and
+    denying all warnings from rustdoc, Clippy, and Whitaker.
+  - `netsuke build test` executes `cargo nextest run` when cargo-nextest is
+    available:
 
     ```sh
-    cargo test --workspace
+    RUSTFLAGS="-D warnings" cargo nextest run --all-targets --all-features
     ```
 
-    running the full workspace test suite. Use `make fmt`
-    (`cargo fmt --workspace`) to apply formatting fixes reported by the
-    formatter check.
+    Otherwise, it falls back to `cargo test --all-targets --all-features`.
+    Use `netsuke build fmt` (`cargo fmt --all`) to apply formatting fixes
+    reported by the formatter check.
 - Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in the code itself rather than
   silencing them.
@@ -307,8 +310,8 @@ project:
 
 ## Markdown guidance
 
-- Validate Markdown files using `make markdownlint`. This target also enforces
-  en-GB-oxendict spelling with the pinned `typos` release.
+- Validate Markdown files using `netsuke build markdownlint`. This action also
+  enforces en-GB-oxendict spelling with the pinned `typos` release.
 - The spelling configuration `typos.toml` is generated. Edit
   `typos.local.toml` for narrow repository terminology; never edit generated
   entries by hand. Regenerate it with the pinned builder:
@@ -326,9 +329,10 @@ project:
 - Quoted APIs and identifiers retain upstream spelling. Put them in backticks
   or fenced code blocks, which the spelling gate ignores, rather than adding
   word-level exceptions.
-- Run `make fmt` after any documentation changes to format all Markdown
-  files and fix table markup.
-- Validate Mermaid diagrams in Markdown files by running `make nixie`.
+- Run `netsuke build fmt` after any documentation changes to format all
+  Markdown files and fix table markup.
+- Validate Mermaid diagrams in Markdown files by running
+  `netsuke build nixie`.
 - Markdown paragraphs and bullet points must be wrapped at 80 columns.
 - Code blocks must be wrapped at 120 columns.
 - Tables and headings must not be wrapped.
@@ -351,7 +355,8 @@ internally facing conventions or practices in `docs/developers-guide.md`.
 
 The following tooling is available in this environment:
 
-- `mbake` — A Makefile validator. Run using `mbake validate Makefile`.
+- `netsuke` — Compiles the repository's `Netsukefile` into a Ninja build graph
+  and runs its public build and validation actions.
 - `strace` — Traces system calls and signals made by a process; useful for
   debugging runtime behaviour and syscalls.
 - `gdb` — The GNU Debugger, for inspecting and controlling programs as they
@@ -379,8 +384,6 @@ The following tooling is available in this environment:
 - `hyperfine` — Command-line benchmarking tool with statistical output.
 - `shellcheck` — Linter for shell scripts, identifying errors and bad practices.
 - `fd` — Fast, user-friendly `find` alternative with sensible defaults.
-- `checkmake` — Linter for `Makefile`s, ensuring they follow best practices and
-  conventions.
 - `srgn` — [Structural grep](https://github.com/alexpovel/srgn), searches code
   and enables editing by syntax tree patterns.
 - `difft` **(Difftastic)** — Semantic diff tool that compares code structure

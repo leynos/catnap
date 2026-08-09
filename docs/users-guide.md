@@ -55,23 +55,25 @@ generation. On Linux targets, `.cargo/config.toml` configures clang to link with
 `mold` so local debug builds link quickly. Coverage generation uses `lld`
 instead because LLVM coverage tools expect LLVM-compatible linker behaviour.
 
-## Makefile Targets
+## Netsukefile actions
 
-The generated `Makefile` exposes these public targets:
+The repository's `Netsukefile` exposes these public actions:
 
-- `make all` runs formatting checks, linting, and tests.
-- `make check-fmt` verifies Rust formatting.
-- `make lint` runs rustdoc, Clippy, and Whitaker with warnings denied.
-- `make test` runs `cargo nextest run` when cargo-nextest is installed and
-  falls back to `cargo test` otherwise. Because `cargo nextest run` does not
-  execute doctests, a nextest-backed `make test` run skips them; run
+- `netsuke` runs the default `all` action for formatting checks, linting, tests,
+  and spelling.
+- `netsuke build check-fmt` verifies Rust formatting.
+- `netsuke build lint` runs rustdoc, Clippy, and Whitaker with warnings denied.
+- `netsuke build test` runs `cargo nextest run` when cargo-nextest is installed
+  and falls back to `cargo test` otherwise. Because `cargo nextest run` does
+  not execute doctests, a nextest-backed test action skips them; run
   `cargo test --doc` separately as a required additional step when nextest is
   present.
-- `make build` builds the debug target.
-- `make release` builds the release target.
-- `make coverage` writes `lcov.info` using `cargo llvm-cov` and `lld`.
-- `make markdownlint` checks Markdown files.
-- `make nixie` validates Mermaid diagrams.
+- `netsuke build build` builds the debug target.
+- `netsuke build release` builds the release target.
+- `netsuke build coverage` writes `lcov.info` using `cargo llvm-cov` and `lld`.
+- `netsuke build markdownlint` checks Markdown files.
+- `netsuke build nixie` validates Mermaid diagrams.
 
-Install `clang`, `lld`, and `mold` before running the full generated workflow
-locally on Linux.
+Install `clang`, `lld`, `mold`, Ninja, and the `netsuke-build` crate before
+running the full generated workflow locally on Linux. The developer's guide
+documents the current Cargo installation command.
