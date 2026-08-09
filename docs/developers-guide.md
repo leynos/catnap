@@ -4,12 +4,13 @@ This guide explains the contributor workflow for the `catnap` command.
 
 ## Local Workflow
 
-Use `make all` as the public entrypoint for formatting, linting, and tests.
-`make lint` runs rustdoc, Clippy, and Whitaker. `make test` prefers
-`cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
-available. Because `cargo nextest run` does not execute doctests, a
-nextest-backed `make test` run skips them; run `cargo test --doc` separately as
-a required additional step when nextest is present. `make coverage` uses
+Use `netsuke` as the public entrypoint for formatting, linting, and tests. The
+default `all` action runs the comprehensive checks sequentially.
+`netsuke build lint` runs rustdoc, Clippy, and Whitaker. `netsuke build test`
+prefers `cargo nextest run` and falls back to `cargo test` when cargo-nextest
+is not available. Because `cargo nextest run` does not execute doctests, a
+nextest-backed test action skips them; run `cargo test --doc` separately as a
+required additional step when nextest is present. `netsuke build coverage` uses
 `cargo llvm-cov` with `lld`.
 
 ## Tooling
@@ -19,8 +20,20 @@ Development builds use Cranelift for debug code generation. On Linux targets,
 quickly. Coverage generation uses `lld` because LLVM coverage tooling expects
 LLVM-compatible linker behaviour.
 
-Install `clang`, `lld`, and `mold` before running the full generated workflow
-locally on Linux.
+Install `clang`, `lld`, `mold`, Ninja, and the `netsuke-build` crate before
+running the full generated workflow locally on Linux. Netsuke currently
+requires its pinned nightly toolchain and Polonius flag when installed from
+crates.io:
+
+```sh
+rustup toolchain install nightly-2026-06-25
+RUSTFLAGS=-Zpolonius=next \
+  cargo +nightly-2026-06-25 install --locked netsuke-build \
+  --version 0.1.0-beta1
+```
+
+The CI workflow caches the installed `~/.cargo/bin/netsuke` binary by Netsuke
+version, host platform, architecture, and installation toolchain.
 
 ## Implementation Boundaries
 
@@ -84,8 +97,8 @@ diagnostics but never observes an error value's formatted output.
 
 Compile-fail fixtures, `tests/ui/*_non_exhaustive.rs`, match every public
 variant of an error enum without a wildcard arm. Each is expected to fail with
-`E0004`, which pins `#[non_exhaustive]` on `CliError`, `DurationParseError`,
-and `ClockConfigError`. That contract is what keeps adding an error variant a
+`E0004`, which pins `#[non_exhaustive]` on `CliError`, `DurationParseError`, and
+`ClockConfigError`. That contract is what keeps adding an error variant a
 non-breaking change for downstream crates.
 
 Run the focused harness with:
@@ -94,8 +107,8 @@ Run the focused harness with:
 cargo test --test ui
 ```
 
-`make test` also discovers the harness and is the required pre-commit and CI
-entrypoint.
+`netsuke build test` also discovers the harness and is the required pre-commit
+and CI entrypoint.
 
 #### Updating display fixtures
 
@@ -125,11 +138,11 @@ refresh.
 
 ## Spelling gate
 
-Run `make spelling` to enforce en-GB-oxendict spelling in tracked Markdown
-prose. The target checks `typos.toml` for drift, runs the consumer phrase
-scanner, then runs the pinned `typos` release over tracked Markdown files.
-`make markdownlint` depends on this gate, and `make all` runs it with the
-repository's other checks.
+Run `netsuke build spelling` to enforce en-GB-oxendict spelling in tracked
+Markdown prose. The action checks `typos.toml` for drift, runs the consumer
+phrase scanner, then runs the pinned `typos` release over tracked Markdown
+files. `netsuke build markdownlint` depends on this gate, and the default `all`
+action runs it with the repository's other checks.
 
 The generated configuration combines the shared estate dictionary with the
 repository-specific `typos.local.toml` overlay. Do not edit `typos.toml` by

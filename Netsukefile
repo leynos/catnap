@@ -1,0 +1,132 @@
+netsuke_version: "1.0.0"
+
+actions:
+  - name: all
+    command: >-
+      netsuke build check-fmt &&
+      netsuke build lint &&
+      netsuke build test &&
+      netsuke build spelling
+
+  - name: clean
+    command: "cargo clean"
+
+  - name: test
+    command: "RUSTFLAGS='-D warnings' cargo nextest run --all-targets --all-features"
+    when: command_available("cargo-nextest")
+
+  - name: test
+    command: "RUSTFLAGS='-D warnings' cargo test --all-targets --all-features"
+    when: not command_available("cargo-nextest")
+
+  - name: build
+    command: "cargo build --bin catnap"
+
+  - name: release
+    command: "cargo build --release --bin catnap"
+
+  - name: coverage
+    command: >-
+      echo "coverage linker flags: -fuse-ld=lld" &&
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=clang
+      RUSTFLAGS="-D warnings -C link-arg=-fuse-ld=lld"
+      CFLAGS="-fuse-ld=lld"
+      LDFLAGS="-fuse-ld=lld"
+      cargo llvm-cov --lcov --output-path lcov.info
+      --all-targets --all-features
+
+  - name: lint
+    command: >-
+      RUSTDOCFLAGS="-D warnings" cargo doc --no-deps &&
+      cargo clippy --all-targets --all-features -- -D warnings &&
+      PATH="{{ env('HOME') }}/.cargo/bin:{{ env('HOME') }}/.local/bin:{{ env('HOME') }}/.bun/bin:{{ env('PATH') }}"
+      RUSTFLAGS="-D warnings" whitaker --all --
+      --all-targets --all-features
+
+  - name: typecheck
+    command: "RUSTFLAGS='-D warnings' cargo check --all-targets --all-features"
+
+  - name: fmt
+    command: >-
+      cargo +nightly fmt --all &&
+      mdformat-all
+
+  - name: check-fmt
+    command: "cargo fmt --all -- --check"
+
+  - name: markdownlint
+    command: >-
+      find . -type f -name "*.md"
+      -not -path "./target/*"
+      -not -path "./.uv-cache/*"
+      -not -path "./.uv-tools/*"
+      -print0 | xargs -0 markdownlint-cli2
+    deps:
+      - spelling
+
+  - name: spelling
+    command: >-
+      git ls-files -z "*.md" |
+      xargs -0 -r env UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+      uv tool run typos@1.48.0 --config typos.toml --force-exclude
+    deps:
+      - spelling-phrase-check
+
+  - name: spelling-phrase-check
+    command: >-
+      PYTHONPATH=scripts UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+      uv run --no-project --python 3.14
+      scripts/typos_rollout_check.py --repository .
+    deps:
+      - spelling-config
+
+  - name: spelling-config
+    command: >-
+      git ls-files --error-unmatch typos.toml >/dev/null &&
+      UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+      uv tool run --python 3.14
+      --from "git+https://github.com/leynos/typos-config-builder.git@d6da92f02240a79a945c835f69bdd08a888da1d0"
+      typos-config-builder --repository . --check
+    deps:
+      - spelling-helper-test
+
+  - name: spelling-helper-test
+    command: >-
+      UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+      uv tool run ruff@0.15.12 format --isolated --target-version py313
+      --check scripts/typos_rollout_check.py scripts/tests/test_typos_rollout_check.py &&
+      UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+      uv tool run ruff@0.15.12 check --isolated --target-version py313
+      scripts/typos_rollout_check.py scripts/tests/test_typos_rollout_check.py &&
+      PYTHONPATH=scripts UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+      uv run --no-project --python 3.14 --with pathspec==1.1.1
+      --with pytest==9.0.2 --with pytest-cov==7.0.0
+      python -m pytest scripts/tests/test_typos_rollout_check.py
+      -c /dev/null --rootdir=. -p no:cacheprovider
+      --cov=typos_rollout_check --cov-fail-under=90
+
+  - name: nixie
+    command: "nixie --no-sandbox"
+
+  - name: help
+    command: >-
+      printf "Available actions:\n
+      all                  Perform a comprehensive check of code\n
+      build                Build the debug binary\n
+      check-fmt            Verify formatting\n
+      clean                Remove build artefacts\n
+      coverage             Generate lcov coverage with lld\n
+      fmt                  Format Rust and Markdown sources\n
+      help                 Show available actions\n
+      lint                 Run rustdoc, Clippy, and Whitaker\n
+      markdownlint         Lint Markdown and enforce spelling\n
+      nixie                Validate Mermaid diagrams\n
+      release              Build the release binary\n
+      spelling             Enforce en-GB-oxendict spelling\n
+      test                 Run tests with warnings denied\n
+      typecheck            Type-check without building\n"
+
+targets: []
+
+defaults:
+  - all

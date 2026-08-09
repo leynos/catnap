@@ -47,7 +47,7 @@ omits build output such as `target/`.
 ├── AGENTS.md
 ├── Cargo.toml
 ├── LICENSE
-├── Makefile
+├── Netsukefile
 ├── README.md
 ├── clippy.toml
 ├── codecov.yml
@@ -111,7 +111,7 @@ omits build output such as `target/`.
 - `Cargo.toml`: Defines package metadata, dependencies, lint policy, and Cargo
   configuration.
 - `LICENSE`: Records the project licence text.
-- `Makefile`: Provides the public build, lint, test, coverage, and
+- `Netsukefile`: Provides the public build, lint, test, coverage, and
   documentation validation commands.
 - `README.md`: Introduces the project and gives the shortest useful
   getting-started path.
@@ -129,8 +129,8 @@ omits build output such as `target/`.
   under `tests/`.
 - Keep reusable documentation under `docs/`. Update `docs/contents.md` whenever
   a documentation file is added, renamed, or removed.
-- Keep build and validation entrypoints in `Makefile`; prefer adding or
-  extending a Make target over documenting an ad hoc command.
+- Keep build and validation entrypoints in `Netsukefile`; prefer adding or
+  extending a Netsuke action over documenting an ad hoc command.
 - Keep continuous integration workflow changes under `.github/workflows/` and
   dependency-update policy under `.github/dependabot.yml`.
 - Do not commit generated build output such as `target/`, coverage artefacts,

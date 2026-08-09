@@ -13,6 +13,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       BUILD_PROFILE: debug
+      NETSUKE_TOOLCHAIN: nightly-2026-06-25
+      NETSUKE_VERSION: 0.1.0-beta1
       WHITAKER_INSTALLER_VERSION: '0.2.6'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -20,6 +22,21 @@ jobs:
           persist-credentials: false
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@47b337e4f230b591891656534d4ffad868131740
+      - name: Cache Netsuke
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cargo/bin/netsuke
+          key: netsuke-${{ runner.os }}-${{ runner.arch }}-${{ env.NETSUKE_VERSION }}-${{ env.NETSUKE_TOOLCHAIN }}
+      - name: Install Netsuke from crates.io
+        run: |
+          set -euo pipefail
+          if netsuke --version 2>/dev/null | grep --fixed-strings --quiet "${NETSUKE_VERSION}"; then
+            exit 0
+          fi
+          rustup toolchain install "${NETSUKE_TOOLCHAIN}" --profile minimal
+          RUSTFLAGS=-Zpolonius=next \
+            cargo "+${NETSUKE_TOOLCHAIN}" install --locked \
+            netsuke-build --version "${NETSUKE_VERSION}"
       - name: Install mold linker
         if: runner.os == 'Linux'
         run: |
@@ -27,9 +44,9 @@ jobs:
           export DEBIAN_FRONTEND=noninteractive
           # mold accelerates dev builds; coverage uses lld for llvm-tools compatibility.
           sudo apt-get update \
-            && sudo apt-get install --yes --no-install-recommends clang lld mold
+            && sudo apt-get install --yes --no-install-recommends clang lld mold ninja-build
       - name: Format
-        run: make check-fmt
+        run: netsuke build check-fmt
       - name: Markdown lint
         uses: DavidAnson/markdownlint-cli2-action@d36517c02f0ca87b17baeb4fabee83cd48490f38
         with:
@@ -42,7 +59,7 @@ jobs:
         with:
           python-version: '3.14'
       - name: Spelling
-        run: make spelling
+        run: netsuke build spelling
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest
       - name: Cache Whitaker installer
@@ -69,7 +86,7 @@ jobs:
           whitaker-installer --cranelift
           echo "Whitaker binary: $(command -v whitaker || true)"
       - name: Lint
-        run: make lint
+        run: netsuke build lint
       - name: Log coverage linker configuration
         run: |
           echo "Coverage linker: clang"
