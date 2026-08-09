@@ -1,31 +1,28 @@
 netsuke_version: "1.0.0"
 
-actions:
-  - name: all
-    command: >-
-      netsuke build check-fmt &&
-      netsuke build lint &&
-      netsuke build test &&
-      netsuke build spelling
-
-  - name: clean
+rules:
+  - name: run-clean
+    description: Remove build artefacts
     command: "cargo clean"
 
-  - name: test
+  - name: run-test-nextest
+    description: Run tests with cargo-nextest
     command: "RUSTFLAGS='-D warnings' cargo nextest run --all-targets --all-features"
-    when: command_available("cargo-nextest")
 
-  - name: test
+  - name: run-test-cargo
+    description: Run tests with Cargo
     command: "RUSTFLAGS='-D warnings' cargo test --all-targets --all-features"
-    when: not command_available("cargo-nextest")
 
-  - name: build
+  - name: run-build
+    description: Build the debug binary
     command: "cargo build --bin catnap"
 
-  - name: release
+  - name: run-release
+    description: Build the release binary
     command: "cargo build --release --bin catnap"
 
-  - name: coverage
+  - name: run-coverage
+    description: Generate lcov coverage with lld
     command: >-
       echo "coverage linker flags: -fuse-ld=lld" &&
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=clang
@@ -35,7 +32,8 @@ actions:
       cargo llvm-cov --lcov --output-path lcov.info
       --all-targets --all-features
 
-  - name: lint
+  - name: run-lint
+    description: Run rustdoc, Clippy, and Whitaker
     command: >-
       RUSTDOCFLAGS="-D warnings" cargo doc --no-deps &&
       cargo clippy --all-targets --all-features -- -D warnings &&
@@ -43,54 +41,54 @@ actions:
       RUSTFLAGS="-D warnings" whitaker --all --
       --all-targets --all-features
 
-  - name: typecheck
+  - name: run-typecheck
+    description: Type-check without building
     command: "RUSTFLAGS='-D warnings' cargo check --all-targets --all-features"
 
-  - name: fmt
+  - name: run-fmt
+    description: Format Rust and Markdown sources
     command: >-
       cargo +nightly fmt --all &&
       mdformat-all
 
-  - name: check-fmt
+  - name: run-check-fmt
+    description: Verify formatting
     command: "cargo fmt --all -- --check"
 
-  - name: markdownlint
+  - name: run-markdownlint
+    description: Lint Markdown files
     command: >-
       find . -type f -name "*.md"
       -not -path "./target/*"
       -not -path "./.uv-cache/*"
       -not -path "./.uv-tools/*"
       -print0 | xargs -0 markdownlint-cli2
-    deps:
-      - spelling
 
-  - name: spelling
+  - name: run-spelling
+    description: Enforce en-GB-oxendict spelling
     command: >-
       git ls-files -z "*.md" |
       xargs -0 -r env UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
       uv tool run typos@1.48.0 --config typos.toml --force-exclude
-    deps:
-      - spelling-phrase-check
 
-  - name: spelling-phrase-check
+  - name: run-spelling-phrase-check
+    description: Reject prohibited spelling phrases
     command: >-
       PYTHONPATH=scripts UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
       uv run --no-project --python 3.14
       scripts/typos_rollout_check.py --repository .
-    deps:
-      - spelling-config
 
-  - name: spelling-config
+  - name: run-spelling-config
+    description: Verify the generated spelling configuration
     command: >-
       git ls-files --error-unmatch typos.toml >/dev/null &&
       UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
       uv tool run --python 3.14
       --from "git+https://github.com/leynos/typos-config-builder.git@d6da92f02240a79a945c835f69bdd08a888da1d0"
       typos-config-builder --repository . --check
-    deps:
-      - spelling-helper-test
 
-  - name: spelling-helper-test
+  - name: run-spelling-helper-test
+    description: Validate the spelling-policy integration
     command: >-
       UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
       uv tool run ruff@0.15.12 format --isolated --target-version py313
@@ -105,10 +103,12 @@ actions:
       -c /dev/null --rootdir=. -p no:cacheprovider
       --cov=typos_rollout_check --cov-fail-under=90
 
-  - name: nixie
+  - name: run-nixie
+    description: Validate Mermaid diagrams
     command: "nixie --no-sandbox"
 
-  - name: help
+  - name: show-help
+    description: Show available actions
     command: >-
       printf "Available actions:\n
       all                  Perform a comprehensive check of code\n
@@ -125,6 +125,117 @@ actions:
       spelling             Enforce en-GB-oxendict spelling\n
       test                 Run tests with warnings denied\n
       typecheck            Type-check without building\n"
+
+  - name: complete-all
+    description: Complete the comprehensive check
+    command: ":"
+
+actions:
+  - name: clean
+    rule: run-clean
+
+  - name: test
+    rule: run-test-nextest
+    when: command_available("cargo-nextest")
+
+  - name: test
+    rule: run-test-cargo
+    when: not command_available("cargo-nextest")
+
+  - name: build
+    rule: run-build
+
+  - name: release
+    rule: run-release
+
+  - name: coverage
+    rule: run-coverage
+
+  - name: lint
+    rule: run-lint
+
+  - name: typecheck
+    rule: run-typecheck
+
+  - name: fmt
+    rule: run-fmt
+
+  - name: check-fmt
+    rule: run-check-fmt
+
+  - name: markdownlint
+    rule: run-markdownlint
+    deps:
+      - spelling
+
+  - name: spelling
+    rule: run-spelling
+    deps:
+      - spelling-phrase-check
+
+  - name: spelling-phrase-check
+    rule: run-spelling-phrase-check
+    deps:
+      - spelling-config
+
+  - name: spelling-config
+    rule: run-spelling-config
+    deps:
+      - spelling-helper-test
+
+  - name: spelling-helper-test
+    rule: run-spelling-helper-test
+
+  - name: nixie
+    rule: run-nixie
+
+  - name: help
+    rule: show-help
+
+  - name: all-check-fmt
+    rule: run-check-fmt
+
+  - name: all-lint
+    rule: run-lint
+    order_only_deps:
+      - all-check-fmt
+
+  - name: all-test
+    rule: run-test-nextest
+    when: command_available("cargo-nextest")
+    order_only_deps:
+      - all-lint
+
+  - name: all-test
+    rule: run-test-cargo
+    when: not command_available("cargo-nextest")
+    order_only_deps:
+      - all-lint
+
+  - name: all-spelling-helper-test
+    rule: run-spelling-helper-test
+    order_only_deps:
+      - all-test
+
+  - name: all-spelling-config
+    rule: run-spelling-config
+    order_only_deps:
+      - all-spelling-helper-test
+
+  - name: all-spelling-phrase-check
+    rule: run-spelling-phrase-check
+    order_only_deps:
+      - all-spelling-config
+
+  - name: all-spelling
+    rule: run-spelling
+    order_only_deps:
+      - all-spelling-phrase-check
+
+  - name: all
+    rule: complete-all
+    order_only_deps:
+      - all-spelling
 
 targets: []
 

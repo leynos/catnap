@@ -13,6 +13,14 @@ nextest-backed test action skips them; run `cargo test --doc` separately as a
 required additional step when nextest is present. `netsuke build coverage` uses
 `cargo llvm-cov` with `lld`.
 
+Build recipes are owned by the `run-*` rules in `Netsukefile`. Public actions
+reference those rules while retaining only their standalone dependencies. The
+private `all-*` actions reuse the same rules and form an `order_only_deps` chain,
+so the default workflow remains sequential without making one public gate run
+another. When adding or changing a comprehensive gate, update its rule and
+public action, then place its private action at the appropriate point in the
+`all-*` chain. Keep private actions out of the user-facing `help` output.
+
 ## Tooling
 
 Development builds use Cranelift for debug code generation. On Linux targets,
