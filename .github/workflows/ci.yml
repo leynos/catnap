@@ -14,7 +14,7 @@ jobs:
       CARGO_TERM_COLOR: always
       BUILD_PROFILE: debug
       NETSUKE_TOOLCHAIN: nightly-2026-06-25
-      NETSUKE_VERSION: 0.1.0-beta1
+      NETSUKE_VERSION: 0.1.0-beta2
       WHITAKER_INSTALLER_VERSION: '0.2.6'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

@@ -61,6 +61,7 @@ The repository's `Netsukefile` exposes these public actions:
 
 - `netsuke` runs the default `all` action for formatting checks, linting, tests,
   and spelling.
+- `netsuke help targets` lists the available actions and their descriptions.
 - `netsuke build check-fmt` verifies Rust formatting.
 - `netsuke build lint` runs rustdoc, Clippy, and Whitaker with warnings denied.
 - `netsuke build test` runs `cargo nextest run` when cargo-nextest is installed

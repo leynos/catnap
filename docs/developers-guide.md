@@ -29,7 +29,7 @@ crates.io:
 rustup toolchain install nightly-2026-06-25
 RUSTFLAGS=-Zpolonius=next \
   cargo +nightly-2026-06-25 install --locked netsuke-build \
-  --version 0.1.0-beta1
+  --version =0.1.0-beta2
 ```
 
 The CI workflow caches the installed `~/.cargo/bin/netsuke` binary by Netsuke
