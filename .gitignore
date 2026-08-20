@@ -4,6 +4,7 @@ __pycache__/
 .coverage
 
 # Netsuke-generated Ninja state
+.netsuke/
 .ninja_deps
 .ninja_log
 
