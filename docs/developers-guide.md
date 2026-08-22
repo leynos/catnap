@@ -5,12 +5,35 @@ This guide explains the contributor workflow for the `catnap` command.
 ## Local Workflow
 
 Use `make all` as the public entrypoint for formatting, linting, and tests.
-`make lint` runs rustdoc, Clippy, and Whitaker. `make test` prefers
-`cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
-available. Because `cargo nextest run` does not execute doctests, a
-nextest-backed `make test` run skips them; run `cargo test --doc` separately as
-a required additional step when nextest is present. `make coverage` uses
-`cargo llvm-cov` with `lld`.
+`make lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint.
+`make test` prefers `cargo nextest run` and falls back to `cargo test` when
+cargo-nextest is not available. Because `cargo nextest run` does not execute
+doctests, a nextest-backed `make test` run skips them; run `cargo test --doc`
+separately as a required additional step when nextest is present.
+`make coverage` uses `cargo llvm-cov` with `lld`.
+
+### GitHub Actions workflow linting
+
+`make lint` runs `yamllint .github/workflows` and `actionlint`, so every
+workflow receives YAML style, syntax, and GitHub Actions semantic validation.
+The `.yamllint.yml` policy accepts GitHub's unquoted `on` trigger key while
+requiring `true` and `false` for boolean values.
+
+Install `yamllint` with the version configured by `YAMLLINT_VERSION`, then
+install `actionlint` using its
+[upstream instructions](https://github.com/rhysd/actionlint/blob/main/README.md#installation).
+Make both linters available on `PATH` before running the target:
+
+```sh
+uv tool install "yamllint==1.38.0"
+make lint
+```
+
+CI caches the uv cache, tool environment, and executable directory, then
+installs `yamllint` with `uv tool`. It separately caches actionlint v1.7.12 and
+uses the upstream download script on a cache miss. The CI lint step prefixes
+the repository root to `PATH` so the cached or downloaded actionlint executable
+is available to `make lint`.
 
 ## Tooling
 
