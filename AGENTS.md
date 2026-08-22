@@ -146,11 +146,19 @@ project:
   - `make lint` executes:
 
     ```sh
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+    cargo clippy --all-targets --all-features -- -D warnings
+    whitaker --all -- --all-targets --all-features
+    yamllint .github/workflows
+    actionlint
     ```
 
-    linting every target with all features enabled and denying all Clippy
-    warnings.
+    This validates Rust documentation, linting, and all GitHub Actions
+    workflows. Keep `.yamllint.yml` compatible with GitHub's unquoted `on`
+    trigger key, and fix workflow findings rather than disabling either linter.
+    CI must cache and install `yamllint` with `uv tool`, then cache the
+    `actionlint` binary downloaded by its upstream script before invoking
+    `make lint`.
   - `make test` executes:
 
     ```sh

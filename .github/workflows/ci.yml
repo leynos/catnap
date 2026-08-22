@@ -1,3 +1,4 @@
+---
 name: CI
 
 'on':
@@ -14,6 +15,10 @@ jobs:
       CARGO_TERM_COLOR: always
       BUILD_PROFILE: debug
       WHITAKER_INSTALLER_VERSION: '0.2.6'
+      UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
+      UV_TOOL_DIR: ${{ github.workspace }}/.uv-tools
+      UV_TOOL_BIN_DIR: ${{ github.workspace }}/.uv-bin
+      YAMLLINT_VERSION: '1.38.0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -41,6 +46,29 @@ jobs:
         uses: astral-sh/setup-uv@f45168497b927d08c229345a5ab9ad5c85418d0b
         with:
           python-version: '3.14'
+      - name: Cache yamllint
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            .uv-cache
+            .uv-tools
+            .uv-bin
+          key: yamllint-${{ runner.os }}-${{ runner.arch }}-${{ env.YAMLLINT_VERSION }}
+      - name: Install yamllint
+        run: |
+          uv tool install "yamllint==${YAMLLINT_VERSION}"
+          echo "${UV_TOOL_BIN_DIR}" >> "$GITHUB_PATH"
+      - name: Cache actionlint
+        id: cache_actionlint
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: actionlint
+          key: actionlint-${{ runner.os }}-${{ runner.arch }}-1.7.12
+      - name: Download actionlint
+        id: get_actionlint
+        if: steps.cache_actionlint.outputs.cache-hit != 'true'
+        run: bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+        shell: bash
       - name: Spelling
         run: make spelling
       - name: Install test runner
@@ -69,7 +97,7 @@ jobs:
           whitaker-installer --cranelift
           echo "Whitaker binary: $(command -v whitaker || true)"
       - name: Lint
-        run: make lint
+        run: PATH="$GITHUB_WORKSPACE:$PATH" make lint
       - name: Log coverage linker configuration
         run: |
           echo "Coverage linker: clang"
