@@ -25,15 +25,18 @@ install `actionlint` using its
 Make both linters available on `PATH` before running the target:
 
 ```sh
-uv tool install "yamllint==1.38.0"
+uv tool install "yamllint==${YAMLLINT_VERSION}"
 make lint
 ```
 
 CI caches the uv cache, tool environment, and executable directory, then
-installs `yamllint` with `uv tool`. It separately caches actionlint v1.7.12 and
-uses the upstream download script on a cache miss. The CI lint step prefixes
-the repository root to `PATH` so the cached or downloaded actionlint executable
-is available to `make lint`.
+installs `yamllint` with `uv tool`. It separately caches actionlint v1.7.12
+and, on a cache miss, uses the upstream download script pinned to commit
+`914e7df21a07ef503a81201c76d2b11c789d3fca`, verifying the release archive's
+SHA-256 checksum
+(`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`) before
+use. The CI lint step prefixes the repository root to `PATH` so the cached or
+downloaded actionlint executable is available to `make lint`.
 
 ## Tooling
 

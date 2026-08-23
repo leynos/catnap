@@ -1,4 +1,4 @@
-.PHONY: help all clean test build release coverage lint fmt check-fmt markdownlint nixie spelling spelling-config spelling-phrase-check spelling-helper-test
+.PHONY: help all clean test build release coverage lint github-actions-lint fmt check-fmt markdownlint nixie spelling spelling-config spelling-phrase-check spelling-helper-test
 
 
 TARGET ?= catnap
@@ -66,6 +66,9 @@ lint: ## Run Rust and GitHub Actions linters with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
 	@echo "Whitaker binary: $(WHITAKER)"
 	PATH="$(USER_BIN_PATH):$(PATH)" RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
+	$(MAKE) github-actions-lint
+
+github-actions-lint: ## Validate GitHub Actions workflows
 	$(YAMLLINT) .github/workflows
 	$(ACTIONLINT)
 
