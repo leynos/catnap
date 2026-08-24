@@ -2,6 +2,7 @@
 
 use std::{
     error::Error,
+    io,
     path::PathBuf,
     process::{Command, Output},
 };
@@ -14,6 +15,12 @@ use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
 const CI_WORKFLOW: &str = ".github/workflows/ci.yml";
+const WORKFLOW_FILES: [&str; 4] = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/delayed-pr-comment.yml",
+    ".github/workflows/dependabot-automerge.yml",
+    ".github/workflows/release.yml",
+];
 const YAML_POLICY: &str = ".yamllint.yml";
 
 #[rstest]
@@ -31,7 +38,7 @@ fn lint_target_invokes_the_workflow_linters(lint_sandbox: Result<LintSandbox, Bo
         sandbox
             .workflow_linter_invocations()
             .expect("read workflow linter invocations"),
-        ["yamllint", "actionlint"]
+        ["yamllint\t.github/workflows", "actionlint"]
     );
 }
 
@@ -48,7 +55,7 @@ fn lint_target_propagates_a_workflow_linter_failure(
         sandbox
             .workflow_linter_invocations()
             .expect("read workflow linter invocations"),
-        ["yamllint", "actionlint"]
+        ["yamllint\t.github/workflows", "actionlint"]
     );
 }
 
@@ -78,13 +85,93 @@ fn workflow_lint_policy_supports_github_actions_and_pinned_ci_tools(
     assert!(yamllint_policy.contains("check-keys: false"));
     assert!(yamllint_policy.contains("allowed-values: ['true', 'false']"));
 
+    for workflow_file in WORKFLOW_FILES {
+        assert!(
+            !read_repository_file(workflow_file)
+                .expect("read GitHub Actions workflow")
+                .trim()
+                .is_empty(),
+            "workflow {workflow_file} is empty"
+        );
+    }
+
     let ci_workflow = read_repository_file(CI_WORKFLOW).expect("read CI workflow");
-    assert!(ci_workflow.contains("actionlint-${{ runner.os }}-${{ runner.arch }}-1.7.12"));
-    assert!(ci_workflow.contains("readonly ACTIONLINT_VERSION='1.7.12'"));
-    assert!(ci_workflow.contains("914e7df21a07ef503a81201c76d2b11c789d3fca"));
-    assert!(ci_workflow.contains("sha256sum --check --"));
+    assert_eq!(
+        workflow_environment_value(&ci_workflow, "YAMLLINT_VERSION")
+            .expect("find YAMLLINT_VERSION"),
+        "1.38.0"
+    );
+
+    let yamllint_cache =
+        workflow_step(&ci_workflow, "Cache yamllint").expect("find yamllint cache");
+    assert_eq!(
+        workflow_step_field(yamllint_cache, "uses").expect("find yamllint cache action"),
+        "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
+    );
+    assert!(yamllint_cache.contains(
+        "          path: |\n            .uv-cache\n            .uv-tools\n            .uv-bin"
+    ));
+    assert!(yamllint_cache.contains(
+        "          key: yamllint-${{ runner.os }}-${{ runner.arch }}-${{ env.YAMLLINT_VERSION }}"
+    ));
+
+    let yamllint_install =
+        workflow_step(&ci_workflow, "Install yamllint").expect("find yamllint installation");
+    assert!(yamllint_install.contains("uv tool install \"yamllint==${YAMLLINT_VERSION}\""));
+    assert!(yamllint_install.contains("echo \"${UV_TOOL_BIN_DIR}\" >> \"$GITHUB_PATH\""));
+
+    let actionlint_cache =
+        workflow_step(&ci_workflow, "Cache actionlint").expect("find actionlint cache");
+    assert_eq!(
+        workflow_step_field(actionlint_cache, "id").expect("find actionlint cache id"),
+        "cache_actionlint"
+    );
+    assert_eq!(
+        actionlint_cache
+            .lines()
+            .find_map(|line| line.strip_prefix("          path: "))
+            .expect("actionlint cache has a path"),
+        "actionlint"
+    );
     assert!(
-        ci_workflow.contains("bash \"${ACTIONLINT_INSTALLER_PATH}\" \"${ACTIONLINT_VERSION}\"")
+        actionlint_cache
+            .contains("          key: actionlint-${{ runner.os }}-${{ runner.arch }}-1.7.12")
+    );
+
+    let actionlint_download =
+        workflow_step(&ci_workflow, "Download actionlint").expect("find actionlint download");
+    assert_eq!(
+        workflow_step_field(actionlint_download, "id").expect("find actionlint download id"),
+        "get_actionlint"
+    );
+    assert_eq!(
+        workflow_step_field(actionlint_download, "if").expect("find actionlint cache condition"),
+        "steps.cache_actionlint.outputs.cache-hit != 'true'"
+    );
+    assert!(
+        actionlint_download.contains("readonly ACTIONLINT_VERSION='1.7.12'"),
+        "actionlint downloader does not pin its version"
+    );
+    assert!(
+        actionlint_download.contains(
+            "readonly ACTIONLINT_INSTALLER_COMMIT='914e7df21a07ef503a81201c76d2b11c789d3fca'"
+        ),
+        "actionlint downloader does not pin its installer"
+    );
+    assert!(
+        actionlint_download.contains("sha256sum --check --"),
+        "actionlint downloader does not verify its archive"
+    );
+    assert!(
+        actionlint_download
+            .contains("bash \"${ACTIONLINT_INSTALLER_PATH}\" \"${ACTIONLINT_VERSION}\""),
+        "actionlint downloader does not pass its pinned version"
+    );
+
+    let lint_step = workflow_step(&ci_workflow, "Lint").expect("find lint step");
+    assert_eq!(
+        workflow_step_field(lint_step, "run").expect("find lint command"),
+        "/usr/bin/make ACTIONLINT=\"$GITHUB_WORKSPACE/actionlint\" lint"
     );
 }
 
@@ -119,7 +206,12 @@ impl LintSandbox {
         Ok(self
             .invocations()?
             .into_iter()
-            .filter(|invocation| matches!(invocation.as_str(), "yamllint" | "actionlint"))
+            .filter(|invocation| {
+                matches!(
+                    invocation.split('\t').next(),
+                    Some("yamllint" | "actionlint")
+                )
+            })
             .collect())
     }
 
@@ -173,13 +265,58 @@ fn repository_directory() -> Result<Dir, Box<dyn Error>> {
     )?)
 }
 
+fn workflow_environment_value<'workflow>(
+    workflow: &'workflow str,
+    name: &str,
+) -> Result<&'workflow str, io::Error> {
+    workflow
+        .split_once("    env:\n")
+        .and_then(|(_, environment)| environment.split_once("    steps:\n"))
+        .and_then(|(environment, _)| {
+            environment.lines().find_map(|line| {
+                line.strip_prefix("      ")
+                    .and_then(|value| value.strip_prefix(name))
+                    .and_then(|value| value.strip_prefix(": "))
+            })
+        })
+        .map(|value| value.trim_matches('\''))
+        .ok_or_else(|| io::Error::other("CI workflow defines the required environment value"))
+}
+
+fn workflow_step<'workflow>(
+    workflow: &'workflow str,
+    name: &str,
+) -> Result<&'workflow str, io::Error> {
+    let step_start = format!("      - name: {name}\n");
+    workflow
+        .split_once(&step_start)
+        .map(|(_, step)| step.split("\n      - ").next().unwrap_or(step))
+        .ok_or_else(|| io::Error::other("CI workflow contains the required step"))
+}
+
+fn workflow_step_field<'workflow>(
+    step: &'workflow str,
+    name: &str,
+) -> Result<&'workflow str, io::Error> {
+    let field_start = format!("        {name}: ");
+    step.lines()
+        .find_map(|line| line.strip_prefix(&field_start))
+        .ok_or_else(|| io::Error::other("CI workflow step contains the required field"))
+}
+
 fn write_fake_tool(directory: &Dir, tool: &str) -> Result<(), Box<dyn Error>> {
     directory.write(
         tool,
         concat!(
             "#!/bin/sh\n",
             "tool_name=${0##*/}\n",
-            "printf '%s\\n' \"${tool_name}\" >> \"${LINT_INVOCATION_LOG}\"\n",
+            "{\n",
+            "  printf '%s' \"${tool_name}\"\n",
+            "  for argument in \"$@\"; do\n",
+            "    printf '\\t%s' \"${argument}\"\n",
+            "  done\n",
+            "  printf '\\n'\n",
+            "} >> \"${LINT_INVOCATION_LOG}\"\n",
             "if [ \"${tool_name}\" = \"${FAILING_TOOL:-}\" ]; then\n",
             "  exit 23\n",
             "fi\n",

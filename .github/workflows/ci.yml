@@ -126,7 +126,7 @@ jobs:
           whitaker-installer --cranelift
           echo "Whitaker binary: $(command -v whitaker || true)"
       - name: Lint
-        run: PATH="$GITHUB_WORKSPACE:$PATH" make lint
+        run: /usr/bin/make ACTIONLINT="$GITHUB_WORKSPACE/actionlint" lint
       - name: Log coverage linker configuration
         run: |
           echo "Coverage linker: clang"

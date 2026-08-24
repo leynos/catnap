@@ -37,8 +37,9 @@ and, on a cache miss, uses the upstream download script pinned to commit
 `914e7df21a07ef503a81201c76d2b11c789d3fca`, verifying the release archive's
 SHA-256 checksum
 (`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`) before
-use. The CI lint step prefixes the repository root to `PATH` so the cached or
-downloaded actionlint executable is available to `make lint`.
+use. The CI lint step passes the cached or downloaded actionlint executable via
+an absolute `ACTIONLINT` path while invoking trusted `/usr/bin/make`, so
+checkout contents cannot shadow `make`.
 
 ## Tooling
 
