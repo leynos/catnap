@@ -25,7 +25,9 @@ install `actionlint` using its
 Make both linters available on `PATH` before running the target:
 
 ```sh
+export YAMLLINT_VERSION=1.38.0
 uv tool install "yamllint==${YAMLLINT_VERSION}"
+export PATH="$(uv tool dir --bin):${PATH}"
 make lint
 ```
 

@@ -10,14 +10,15 @@ use cap_std::{
     ambient_authority,
     fs::{Dir, PermissionsExt},
 };
+use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
 const CI_WORKFLOW: &str = ".github/workflows/ci.yml";
 const YAML_POLICY: &str = ".yamllint.yml";
 
-#[test]
-fn lint_target_invokes_the_workflow_linters() {
-    let sandbox = LintSandbox::new().expect("create lint sandbox");
+#[rstest]
+fn lint_target_invokes_the_workflow_linters(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
+    let sandbox = lint_sandbox.expect("create lint sandbox");
 
     let output = sandbox.run_lint(None).expect("run make lint");
 
@@ -34,9 +35,11 @@ fn lint_target_invokes_the_workflow_linters() {
     );
 }
 
-#[test]
-fn lint_target_propagates_a_workflow_linter_failure() {
-    let sandbox = LintSandbox::new().expect("create lint sandbox");
+#[rstest]
+fn lint_target_propagates_a_workflow_linter_failure(
+    lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
+) {
+    let sandbox = lint_sandbox.expect("create lint sandbox");
 
     let output = sandbox.run_lint(Some("actionlint")).expect("run make lint");
 
@@ -49,9 +52,11 @@ fn lint_target_propagates_a_workflow_linter_failure() {
     );
 }
 
-#[test]
-fn lint_target_fails_when_a_workflow_linter_is_missing() {
-    let sandbox = LintSandbox::new().expect("create lint sandbox");
+#[rstest]
+fn lint_target_fails_when_a_workflow_linter_is_missing(
+    lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
+) {
+    let sandbox = lint_sandbox.expect("create lint sandbox");
 
     let output = sandbox.run_with_missing_yamllint().expect("run make lint");
 
@@ -64,8 +69,11 @@ fn lint_target_fails_when_a_workflow_linter_is_missing() {
     );
 }
 
-#[test]
-fn workflow_lint_policy_supports_github_actions_and_pinned_ci_tools() {
+#[rstest]
+fn workflow_lint_policy_supports_github_actions_and_pinned_ci_tools(
+    lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
+) {
+    let _sandbox = lint_sandbox.expect("create lint sandbox");
     let yamllint_policy = read_repository_file(YAML_POLICY).expect("read yamllint policy");
     assert!(yamllint_policy.contains("check-keys: false"));
     assert!(yamllint_policy.contains("allowed-values: ['true', 'false']"));
@@ -86,21 +94,22 @@ struct LintSandbox {
     temporary_directory: TempDir,
 }
 
-impl LintSandbox {
-    fn new() -> Result<Self, Box<dyn Error>> {
-        let temporary_directory = tempfile::tempdir()?;
-        let directory = Dir::open_ambient_dir(temporary_directory.path(), ambient_authority())?;
-        let invocation_log = temporary_directory.path().join("invocations.log");
-        for tool in ["cargo", "whitaker", "yamllint", "actionlint"] {
-            write_fake_tool(&directory, tool)?;
-        }
-        Ok(Self {
-            directory,
-            invocation_log,
-            temporary_directory,
-        })
+#[fixture]
+fn lint_sandbox() -> Result<LintSandbox, Box<dyn Error>> {
+    let temporary_directory = tempfile::tempdir()?;
+    let directory = Dir::open_ambient_dir(temporary_directory.path(), ambient_authority())?;
+    let invocation_log = temporary_directory.path().join("invocations.log");
+    for tool in ["cargo", "whitaker", "yamllint", "actionlint"] {
+        write_fake_tool(&directory, tool)?;
     }
+    Ok(LintSandbox {
+        directory,
+        invocation_log,
+        temporary_directory,
+    })
+}
 
+impl LintSandbox {
     fn invocations(&self) -> Result<Vec<String>, Box<dyn Error>> {
         let invocations = self.directory.read_to_string("invocations.log")?;
         Ok(invocations.lines().map(str::to_owned).collect())
