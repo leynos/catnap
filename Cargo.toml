@@ -92,7 +92,7 @@ missing_crate_level_docs            = "deny"
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
-cap-std = "3.4.6"
+cap-std = "4.0.2"
 insta = "1.47.2"
 mockall = "0.14.0"
 predicates = "3.1.4"
