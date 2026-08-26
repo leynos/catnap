@@ -1,3 +1,4 @@
+---
 name: CI
 
 'on':
@@ -14,6 +15,10 @@ jobs:
       CARGO_TERM_COLOR: always
       BUILD_PROFILE: debug
       WHITAKER_INSTALLER_VERSION: '0.2.6'
+      UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
+      UV_TOOL_DIR: ${{ github.workspace }}/.uv-tools
+      UV_TOOL_BIN_DIR: ${{ github.workspace }}/.uv-bin
+      YAMLLINT_VERSION: '1.38.0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -41,6 +46,58 @@ jobs:
         uses: astral-sh/setup-uv@19b4d1e990bec64818914c40230bde93a0de300b
         with:
           python-version: '3.14'
+      - name: Cache yamllint
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            .uv-cache
+            .uv-tools
+            .uv-bin
+          key: yamllint-${{ runner.os }}-${{ runner.arch }}-${{ env.YAMLLINT_VERSION }}
+      - name: Install yamllint
+        run: |
+          uv tool install "yamllint==${YAMLLINT_VERSION}"
+          echo "${UV_TOOL_BIN_DIR}" >> "$GITHUB_PATH"
+      - name: Cache actionlint
+        id: cache_actionlint
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: actionlint
+          key: actionlint-${{ runner.os }}-${{ runner.arch }}-1.7.12
+      - name: Download actionlint
+        id: get_actionlint
+        if: steps.cache_actionlint.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          readonly ACTIONLINT_VERSION='1.7.12'
+          readonly ACTIONLINT_SHA256='8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8'
+          readonly ACTIONLINT_INSTALLER_COMMIT='914e7df21a07ef503a81201c76d2b11c789d3fca'
+          readonly ACTIONLINT_ARCHIVE="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          readonly ACTIONLINT_RAW_BASE='https://raw.githubusercontent.com/rhysd/actionlint'
+          readonly ACTIONLINT_SCRIPT='scripts/download-actionlint.bash'
+          readonly ACTIONLINT_INSTALLER_URL="${ACTIONLINT_RAW_BASE}/${ACTIONLINT_INSTALLER_COMMIT}/${ACTIONLINT_SCRIPT}"
+          readonly ACTIONLINT_RELEASE_ROOT='https://github.com/rhysd/actionlint/releases/download'
+          readonly ACTIONLINT_RELEASE_BASE="${ACTIONLINT_RELEASE_ROOT}/v${ACTIONLINT_VERSION}"
+          readonly ACTIONLINT_RELEASE_URL="${ACTIONLINT_RELEASE_BASE}/${ACTIONLINT_ARCHIVE}"
+          ACTIONLINT_INSTALLER_PATH="$(mktemp)"
+          ACTIONLINT_ARCHIVE_PATH="$(mktemp)"
+          trap 'rm -f "${ACTIONLINT_INSTALLER_PATH}" "${ACTIONLINT_ARCHIVE_PATH}"' EXIT
+          # Feed the verified archive to the reviewed installer without a second download.
+          curl() {
+            if [[ "${*: -1}" == "${ACTIONLINT_RELEASE_URL}" ]]; then
+              cat "${ACTIONLINT_ARCHIVE_PATH}"
+            else
+              command curl "$@"
+            fi
+          }
+          export -f curl
+          command curl --fail --location --show-error --output "${ACTIONLINT_INSTALLER_PATH}" \
+            "${ACTIONLINT_INSTALLER_URL}"
+          command curl --fail --location --show-error --output "${ACTIONLINT_ARCHIVE_PATH}" \
+            "${ACTIONLINT_RELEASE_URL}"
+          printf '%s  %s\n' "${ACTIONLINT_SHA256}" "${ACTIONLINT_ARCHIVE_PATH}" | sha256sum --check --
+          bash "${ACTIONLINT_INSTALLER_PATH}" "${ACTIONLINT_VERSION}"
+        shell: bash
       - name: Spelling
         run: make spelling
       - name: Install test runner
@@ -69,7 +126,7 @@ jobs:
           whitaker-installer --cranelift
           echo "Whitaker binary: $(command -v whitaker || true)"
       - name: Lint
-        run: make lint
+        run: /usr/bin/make ACTIONLINT="$GITHUB_WORKSPACE/actionlint" lint
       - name: Log coverage linker configuration
         run: |
           echo "Coverage linker: clang"

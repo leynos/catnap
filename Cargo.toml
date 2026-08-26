@@ -92,6 +92,7 @@ missing_crate_level_docs            = "deny"
 
 [dev-dependencies]
 assert_cmd = "2.2.2"
+cap-std = "3.4.6"
 insta = "1.47.2"
 mockall = "0.14.0"
 predicates = "3.1.4"
@@ -100,4 +101,5 @@ rstest = "0.26.1"
 rstest-bdd = "0.5.0"
 rstest-bdd-macros = "0.5.0"
 serde_json = "1.0.150"
+tempfile = "3.27.0"
 trybuild = "1.0.120"

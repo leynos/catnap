@@ -5,12 +5,41 @@ This guide explains the contributor workflow for the `catnap` command.
 ## Local Workflow
 
 Use `make all` as the public entrypoint for formatting, linting, and tests.
-`make lint` runs rustdoc, Clippy, and Whitaker. `make test` prefers
-`cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
-available. Because `cargo nextest run` does not execute doctests, a
-nextest-backed `make test` run skips them; run `cargo test --doc` separately as
-a required additional step when nextest is present. `make coverage` uses
-`cargo llvm-cov` with `lld`.
+`make lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint.
+`make test` prefers `cargo nextest run` and falls back to `cargo test` when
+cargo-nextest is not available. Because `cargo nextest run` does not execute
+doctests, a nextest-backed `make test` run skips them; run `cargo test --doc`
+separately as a required additional step when nextest is present.
+`make coverage` uses `cargo llvm-cov` with `lld`.
+
+### GitHub Actions workflow linting
+
+`make lint` runs `yamllint .github/workflows` and `actionlint`, so every
+workflow receives YAML style, syntax, and GitHub Actions semantic validation.
+The `.yamllint.yml` policy accepts GitHub's unquoted `on` trigger key while
+requiring `true` and `false` for boolean values.
+
+Install `yamllint` with the version configured by `YAMLLINT_VERSION`, then
+install `actionlint` using its
+[upstream instructions](https://github.com/rhysd/actionlint/blob/main/README.md#installation).
+Make both linters available on `PATH` before running the target:
+
+```sh
+export YAMLLINT_VERSION=1.38.0
+uv tool install "yamllint==${YAMLLINT_VERSION}"
+export PATH="$(uv tool dir --bin):${PATH}"
+make lint
+```
+
+CI caches the uv cache, tool environment, and executable directory, then
+installs `yamllint` with `uv tool`. It separately caches actionlint v1.7.12
+and, on a cache miss, uses the upstream download script pinned to commit
+`914e7df21a07ef503a81201c76d2b11c789d3fca`, verifying the release archive's
+SHA-256 checksum
+(`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`) before
+use. The CI lint step passes the cached or downloaded actionlint executable via
+an absolute `ACTIONLINT` path while invoking trusted `/usr/bin/make`, so
+checkout contents cannot shadow `make`.
 
 ## Tooling
 

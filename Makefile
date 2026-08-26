@@ -1,4 +1,4 @@
-.PHONY: help all clean test build release coverage lint fmt check-fmt markdownlint nixie spelling spelling-config spelling-phrase-check spelling-helper-test
+.PHONY: help all clean test build release coverage lint github-actions-lint fmt check-fmt markdownlint nixie spelling spelling-config spelling-phrase-check spelling-helper-test
 
 
 TARGET ?= catnap
@@ -19,12 +19,15 @@ COVERAGE_LINKER_FLAGS ?= -fuse-ld=lld
 COVERAGE_RUST_FLAGS ?= $(RUST_FLAGS) -C link-arg=$(COVERAGE_LINKER_FLAGS)
 MDLINT ?= markdownlint-cli2
 NIXIE ?= nixie
+YAMLLINT ?= yamllint
+ACTIONLINT ?= actionlint
 WHITAKER ?= $(or $(shell command -v whitaker 2>/dev/null),$(wildcard $(USER_WHITAKER)),whitaker)
 UV ?= uv
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 RUFF_VERSION ?= 0.15.12
 PATHSPEC_VERSION ?= 1.1.1
 TYPOS_VERSION ?= 1.48.0
+YAMLLINT_VERSION ?= 1.38.0
 TYPOS_CONFIG_BUILDER_COMMIT := d6da92f02240a79a945c835f69bdd08a888da1d0
 TYPOS_CONFIG_BUILDER_SOURCE := git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_COMMIT)
 TYPOS_CONFIG_BUILDER := $(UV_ENV) $(UV) tool run --python 3.14 \
@@ -58,11 +61,16 @@ coverage: ## Generate lcov coverage with lld for llvm-tools compatibility
 		CFLAGS="$(COVERAGE_LINKER_FLAGS)" LDFLAGS="$(COVERAGE_LINKER_FLAGS)" \
 		$(CARGO) llvm-cov --lcov --output-path lcov.info $(TEST_FLAGS)
 
-lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
+lint: ## Run Rust and GitHub Actions linters with warnings denied
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO) doc --no-deps
 	$(CARGO) clippy $(CLIPPY_FLAGS)
 	@echo "Whitaker binary: $(WHITAKER)"
 	PATH="$(USER_BIN_PATH):$(PATH)" RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
+	$(MAKE) github-actions-lint
+
+github-actions-lint: ## Validate GitHub Actions workflows
+	$(YAMLLINT) .github/workflows
+	$(ACTIONLINT)
 
 typecheck: ## Type-check without building
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS)
