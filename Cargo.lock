@@ -157,9 +157,9 @@ dependencies = [
 
 [[package]]
 name = "cap-std"
-version = "4.0.2"
+version = "4.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7281235d6e96d3544ca18bba9049be92f4190f8d923e3caef1b5f66cfa752608"
+checksum = "c1ec78e242cfa2cfe276807ac2ecc00315a6c97786977414bcd1c3963b6c91b8"
 dependencies = [
  "cap-primitives 4.0.3",
  "io-extras 0.19.0",
@@ -172,7 +172,7 @@ name = "catnap"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
- "cap-std 4.0.2",
+ "cap-std 4.0.3",
  "insta",
  "mockall",
  "predicates",
