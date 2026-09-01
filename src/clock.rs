@@ -1,58 +1,27 @@
-//! Monotonic clock abstractions used by the sleep runner.
+//! Logical-time sleep policy built around Monotony's clock abstraction.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const NANOS_PER_SECOND: u128 = 1_000_000_000;
 
-/// A timestamp from a monotonic clock.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct MonotonicTimestamp(Duration);
-
-impl MonotonicTimestamp {
-    /// Create a timestamp from a duration since an arbitrary monotonic epoch.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use catnap::MonotonicTimestamp;
-    ///
-    /// let stamp = MonotonicTimestamp::from_elapsed(Duration::from_secs(2));
-    /// assert_eq!(stamp.duration_since(stamp), Duration::ZERO);
-    /// ```
+/// Catnap's logical-time policy for sleep orchestration.
+///
+/// The runner pairs this policy with a [`monotony::MonotonicClock`]. The clock
+/// observes real monotonic time, while this adapter converts elapsed and sleep
+/// durations to Catnap's logical-time scale. Implement this trait only for
+/// alternate sleeping strategies used by the runner, such as deterministic
+/// tests; command parsing and other application code must use
+/// [`ThreadLogicalSleeper`].
+pub trait LogicalSleeper {
+    /// Convert a real elapsed duration to Catnap logical time.
     #[must_use]
-    pub const fn from_elapsed(elapsed: Duration) -> Self { Self(elapsed) }
+    fn logical_elapsed(&self, real_elapsed: Duration) -> Duration;
 
-    /// Return the elapsed duration between this timestamp and an earlier one.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use catnap::MonotonicTimestamp;
-    ///
-    /// let start = MonotonicTimestamp::from_elapsed(Duration::from_secs(3));
-    /// let end = MonotonicTimestamp::from_elapsed(Duration::from_secs(8));
-    /// assert_eq!(end.duration_since(start), Duration::from_secs(5));
-    /// ```
-    #[must_use]
-    pub fn duration_since(self, earlier: Self) -> Duration {
-        self.0.checked_sub(earlier.0).unwrap_or_default()
-    }
+    /// Sleep for the requested Catnap logical duration.
+    fn sleep(&mut self, logical_duration: Duration);
 }
 
-/// Injectable monotonic clock used by the sleep runner.
-pub trait MonotonicClock {
-    /// Return the clock's current monotonic timestamp.
-    fn now(&self) -> MonotonicTimestamp;
-
-    /// Sleep for the requested logical duration.
-    fn sleep(&mut self, duration: Duration);
-}
-
-/// Error returned for invalid real clock configuration.
+/// Error returned for invalid logical-sleeper configuration.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ClockConfigError {
@@ -61,15 +30,14 @@ pub enum ClockConfigError {
     ZeroLogicalSecond,
 }
 
-/// Monotonic clock backed by [`std::time::Instant`].
+/// Thread-blocking logical sleeper used by the command-line application.
 #[derive(Debug)]
-pub struct RealMonotonicClock {
-    started_at: Instant,
+pub struct ThreadLogicalSleeper {
     logical_second: Duration,
 }
 
-impl RealMonotonicClock {
-    /// Create a real monotonic clock.
+impl ThreadLogicalSleeper {
+    /// Create a thread-blocking logical sleeper.
     ///
     /// `logical_second` controls how much real time corresponds to one logical
     /// second. Use `Duration::from_secs(1)` for production behaviour.
@@ -79,38 +47,32 @@ impl RealMonotonicClock {
     /// ```
     /// use std::time::Duration;
     ///
-    /// use catnap::RealMonotonicClock;
+    /// use catnap::ThreadLogicalSleeper;
     ///
-    /// let clock = RealMonotonicClock::new(Duration::from_secs(1));
-    /// assert!(clock.is_ok());
+    /// let sleeper = ThreadLogicalSleeper::new(Duration::from_secs(1));
+    /// assert!(sleeper.is_ok());
     /// ```
     ///
     /// # Errors
     ///
     /// Returns [`ClockConfigError::ZeroLogicalSecond`] when `logical_second` is
     /// zero.
-    pub fn new(logical_second: Duration) -> Result<Self, ClockConfigError> {
+    pub const fn new(logical_second: Duration) -> Result<Self, ClockConfigError> {
         if logical_second.is_zero() {
             Err(ClockConfigError::ZeroLogicalSecond)
         } else {
-            Ok(Self {
-                started_at: Instant::now(),
-                logical_second,
-            })
+            Ok(Self { logical_second })
         }
     }
 }
 
-impl MonotonicClock for RealMonotonicClock {
-    fn now(&self) -> MonotonicTimestamp {
-        MonotonicTimestamp::from_elapsed(scale_real_to_logical(
-            self.started_at.elapsed(),
-            self.logical_second,
-        ))
+impl LogicalSleeper for ThreadLogicalSleeper {
+    fn logical_elapsed(&self, real_elapsed: Duration) -> Duration {
+        scale_real_to_logical(real_elapsed, self.logical_second)
     }
 
-    fn sleep(&mut self, duration: Duration) {
-        std::thread::sleep(scale_logical_to_real(duration, self.logical_second));
+    fn sleep(&mut self, logical_duration: Duration) {
+        std::thread::sleep(scale_logical_to_real(logical_duration, self.logical_second));
     }
 }
 
@@ -133,4 +95,24 @@ fn scale_nanos(duration: Duration, numerator: u128, denominator: u128) -> Durati
 
 fn duration_from_nanos_saturating(nanos: u128) -> Duration {
     u64::try_from(nanos).map_or(Duration::MAX, Duration::from_nanos)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for logical-time duration conversion.
+
+    use std::time::Duration;
+
+    use super::{LogicalSleeper, ThreadLogicalSleeper};
+
+    #[test]
+    fn scales_real_elapsed_time_to_logical_time() {
+        let sleeper = ThreadLogicalSleeper::new(Duration::from_millis(250))
+            .expect("a non-zero logical second should be accepted");
+
+        assert_eq!(
+            sleeper.logical_elapsed(Duration::from_secs(1)),
+            Duration::from_secs(4)
+        );
+    }
 }
