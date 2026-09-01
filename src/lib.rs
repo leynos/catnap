@@ -10,9 +10,10 @@ mod runner;
 use std::{ffi::OsString, io::Write, process::ExitCode};
 
 pub use cli::{CliError, Command, CommandAction, parse_command};
-pub use clock::{ClockConfigError, MonotonicClock, MonotonicTimestamp, RealMonotonicClock};
+pub use clock::{ClockConfigError, LogicalSleeper, ThreadLogicalSleeper};
 pub use duration::{DurationParseError, parse_sleep_duration, report_interval};
 pub use format::format_remaining_time;
+pub use monotony::{MonotonicClock, StdMonotonicClock};
 pub use runner::{RunConfig, run_sleep};
 
 const HELP: &str = concat!(
@@ -72,11 +73,12 @@ fn run_command<E>(command: &Command, stderr: &mut E) -> ExitCode
 where
     E: Write,
 {
-    match RealMonotonicClock::new(command.logical_second()) {
-        Ok(mut clock) => {
+    match ThreadLogicalSleeper::new(command.logical_second()) {
+        Ok(mut sleeper) => {
+            let clock = StdMonotonicClock;
             let locale = sys_locale::get_locale().unwrap_or_else(|| "en-US".to_owned());
             let config = RunConfig::new(command.duration(), locale);
-            match run_sleep(&mut clock, stderr, &config) {
+            match run_sleep(&clock, &mut sleeper, stderr, &config) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(error) => write_io_error(&error, stderr),
             }

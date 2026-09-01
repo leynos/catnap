@@ -58,9 +58,17 @@ arguments into the library. Command parsing, duration parsing, locale-aware
 remaining-time formatting, monotonic clock handling, and sleep orchestration
 live in `src/lib.rs` and its sibling modules.
 
-The runner depends on the `MonotonicClock` trait rather than calling
-`std::time::Instant` directly. Production code uses `RealMonotonicClock`; tests
-use `mockall` to verify runner behaviour with deterministic monotonic time.
+The runner depends on Monotony's `MonotonicClock` trait rather than calling
+`std::time::Instant` directly. Production code combines `StdMonotonicClock`
+with Catnap's `ThreadLogicalSleeper`. The clock owns only monotonic
+observation; the sleeper owns logical-time scaling and blocking sleep.
+
+`LogicalSleeper` is Catnap's narrowly scoped adapter seam. It may be
+implemented only by sleep orchestration callers that must supply an alternative
+blocking strategy; command parsing and unrelated application code use
+`ThreadLogicalSleeper`. Runner tests pair Monotony's
+`SharedManualMonotonicClock` with a local advancing sleeper, keeping time
+observation and sleep progression deterministic without mocks.
 
 Duration suffix metadata is owned by `UNITS` in `src/duration.rs`. All duration
 parsing and compound-operand boundary detection must use this table rather than
@@ -113,8 +121,8 @@ diagnostics but never observes an error value's formatted output.
 
 Compile-fail fixtures, `tests/ui/*_non_exhaustive.rs`, match every public
 variant of an error enum without a wildcard arm. Each is expected to fail with
-`E0004`, which pins `#[non_exhaustive]` on `CliError`, `DurationParseError`,
-and `ClockConfigError`. That contract is what keeps adding an error variant a
+`E0004`, which pins `#[non_exhaustive]` on `CliError`, `DurationParseError`, and
+`ClockConfigError`. That contract is what keeps adding an error variant a
 non-breaking change for downstream crates.
 
 Run the focused harness with:
