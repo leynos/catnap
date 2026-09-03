@@ -22,14 +22,12 @@ LLVM-compatible linker behaviour.
 
 Install `clang`, `lld`, `mold`, Ninja, and the `netsuke-build` crate before
 running the full generated workflow locally on Linux. Netsuke currently
-requires its pinned nightly toolchain and Polonius flag when installed from
-crates.io:
+requires its pinned nightly toolchain when installed from crates.io:
 
 ```sh
-rustup toolchain install nightly-2026-06-25
-RUSTFLAGS=-Zpolonius=next \
-  cargo +nightly-2026-06-25 install --locked netsuke-build \
-  --version =0.1.0-beta2
+rustup toolchain install nightly-2026-08-23
+cargo +nightly-2026-08-23 install --locked netsuke-build \
+  --version =0.1.0-beta3
 ```
 
 The CI workflow caches the installed `~/.cargo/bin/netsuke` binary by Netsuke

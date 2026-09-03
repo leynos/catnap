@@ -3,7 +3,6 @@ netsuke_version: "1.0.0"
 actions:
   - name: all
     description: Run comprehensive checks sequentially
-    command: ":"
     deps:
       - check-fmt
       - lint
@@ -18,9 +17,9 @@ actions:
   - name: test
     description: Run tests with cargo-nextest or Cargo
     command: >-
-      if command -v cargo-nextest >/dev/null 2>&1; then
-      RUSTFLAGS='-D warnings' cargo nextest run --all-targets --all-features;
-      else RUSTFLAGS='-D warnings' cargo test --all-targets --all-features; fi
+      RUSTFLAGS='-D warnings'
+      cargo {% if command_available("cargo-nextest") %}nextest run{% else %}test{% endif %}
+      --all-targets --all-features
 
   - name: build
     description: Build the debug binary
@@ -48,7 +47,7 @@ actions:
       - RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
       - cargo clippy --all-targets --all-features -- -D warnings
       - >-
-        PATH="$$HOME/.cargo/bin:$$HOME/.local/bin:$$HOME/.bun/bin:$$PATH"
+        PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.bun/bin:$PATH"
         RUSTFLAGS="-D warnings" whitaker --all --
         --all-targets --all-features
 
