@@ -11,6 +11,7 @@ keywords = ["rust", "timer", "cli"]
 categories = ["command-line-utilities"]
 
 [dependencies]
+monotony = "1.0.0"
 sys-locale = "0.3.2"
 thiserror = "2.0.18"
 
@@ -94,7 +95,7 @@ missing_crate_level_docs            = "deny"
 assert_cmd = "2.2.2"
 cap-std = "4.0.2"
 insta = "1.47.2"
-mockall = "0.14.0"
+monotony = { version = "1.0.0", features = ["test-util"] }
 predicates = "3.1.4"
 proptest = { version = "1.11.0", default-features = false, features = ["std"] }
 rstest = "0.26.1"
