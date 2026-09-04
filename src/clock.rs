@@ -64,6 +64,16 @@ impl ThreadLogicalSleeper {
             Ok(Self { logical_second })
         }
     }
+
+    /// Convert a logical sleep duration to the corresponding real duration.
+    ///
+    /// This crate-visible seam keeps blocking thread sleep at the application
+    /// boundary while allowing the runner's deterministic tests to advance a
+    /// manual monotonic clock by the same real duration.
+    #[must_use]
+    pub(crate) fn real_sleep_duration(&self, logical_duration: Duration) -> Duration {
+        scale_logical_to_real(logical_duration, self.logical_second)
+    }
 }
 
 impl LogicalSleeper for ThreadLogicalSleeper {
@@ -72,7 +82,7 @@ impl LogicalSleeper for ThreadLogicalSleeper {
     }
 
     fn sleep(&mut self, logical_duration: Duration) {
-        std::thread::sleep(scale_logical_to_real(logical_duration, self.logical_second));
+        std::thread::sleep(self.real_sleep_duration(logical_duration));
     }
 }
 
@@ -103,16 +113,124 @@ mod tests {
 
     use std::time::Duration;
 
-    use super::{LogicalSleeper, ThreadLogicalSleeper};
+    use proptest::prelude::*;
+    use rstest::rstest;
+
+    use super::{ClockConfigError, LogicalSleeper, ThreadLogicalSleeper, scale_logical_to_real};
 
     #[test]
-    fn scales_real_elapsed_time_to_logical_time() {
-        let sleeper = ThreadLogicalSleeper::new(Duration::from_millis(250))
+    fn rejects_a_zero_logical_second() {
+        assert!(matches!(
+            ThreadLogicalSleeper::new(Duration::ZERO),
+            Err(ClockConfigError::ZeroLogicalSecond)
+        ));
+    }
+
+    #[rstest]
+    #[case::half_second(
+        Duration::from_millis(500),
+        Duration::from_secs(1),
+        Duration::from_secs(2)
+    )]
+    #[case::quarter_second(
+        Duration::from_millis(250),
+        Duration::from_secs(1),
+        Duration::from_secs(4)
+    )]
+    #[case::two_seconds(
+        Duration::from_secs(2),
+        Duration::from_secs(1),
+        Duration::from_millis(500)
+    )]
+    fn scales_real_elapsed_time_to_logical_time(
+        #[case] logical_second: Duration,
+        #[case] real_elapsed: Duration,
+        #[case] expected_logical_elapsed: Duration,
+    ) {
+        let sleeper = ThreadLogicalSleeper::new(logical_second)
             .expect("a non-zero logical second should be accepted");
 
         assert_eq!(
-            sleeper.logical_elapsed(Duration::from_secs(1)),
-            Duration::from_secs(4)
+            sleeper.logical_elapsed(real_elapsed),
+            expected_logical_elapsed
         );
+    }
+
+    #[rstest]
+    #[case::half_second(
+        Duration::from_millis(500),
+        Duration::from_secs(2),
+        Duration::from_secs(1)
+    )]
+    #[case::quarter_second(
+        Duration::from_millis(250),
+        Duration::from_secs(4),
+        Duration::from_secs(1)
+    )]
+    #[case::two_seconds(Duration::from_secs(2), Duration::from_secs(1), Duration::from_secs(2))]
+    fn scales_logical_sleep_duration_to_real_time(
+        #[case] logical_second: Duration,
+        #[case] logical_duration: Duration,
+        #[case] expected_real_duration: Duration,
+    ) {
+        let sleeper = ThreadLogicalSleeper::new(logical_second)
+            .expect("a non-zero logical second should be accepted");
+
+        assert_eq!(
+            sleeper.real_sleep_duration(logical_duration),
+            expected_real_duration
+        );
+    }
+
+    #[test]
+    fn saturates_the_real_sleep_duration_on_overflow() {
+        assert_eq!(
+            scale_logical_to_real(Duration::MAX, Duration::MAX),
+            Duration::MAX
+        );
+    }
+
+    proptest! {
+        #[test]
+        fn preserves_zero_elapsed_time(logical_second_nanos in 1_u64..=4_000_000_000) {
+            let sleeper = ThreadLogicalSleeper::new(Duration::from_nanos(logical_second_nanos))
+                .expect("a generated non-zero logical second should be accepted");
+
+            prop_assert_eq!(sleeper.logical_elapsed(Duration::ZERO), Duration::ZERO);
+        }
+
+        #[test]
+        fn logical_elapsed_time_is_monotonic(
+            logical_second_nanos in 1_u64..=4_000_000_000,
+            earlier_nanos in 0_u64..=1_000_000_000_000,
+            additional_nanos in 0_u64..=1_000_000_000_000,
+        ) {
+            let sleeper = ThreadLogicalSleeper::new(Duration::from_nanos(logical_second_nanos))
+                .expect("a generated non-zero logical second should be accepted");
+            let earlier = Duration::from_nanos(earlier_nanos);
+            let later = Duration::from_nanos(earlier_nanos + additional_nanos);
+
+            prop_assert!(sleeper.logical_elapsed(earlier) <= sleeper.logical_elapsed(later));
+        }
+
+        #[test]
+        fn scaling_round_trips_with_bounded_truncation(
+            logical_second_nanos in 1_u64..=4_000_000_000,
+            logical_duration_nanos in 0_u64..=1_000_000_000_000,
+        ) {
+            let sleeper = ThreadLogicalSleeper::new(Duration::from_nanos(logical_second_nanos))
+                .expect("a generated non-zero logical second should be accepted");
+            let logical_duration = Duration::from_nanos(logical_duration_nanos);
+            let real_duration = sleeper.real_sleep_duration(logical_duration);
+            let round_trip = sleeper.logical_elapsed(real_duration);
+            let maximum_truncation_nanos =
+                1_000_000_000_u64.div_ceil(logical_second_nanos);
+
+            prop_assert!(round_trip <= logical_duration);
+            prop_assert!(
+                logical_duration.saturating_sub(round_trip).as_nanos()
+                    <= u128::from(maximum_truncation_nanos)
+            );
+        }
     }
 }
