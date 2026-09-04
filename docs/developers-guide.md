@@ -94,11 +94,11 @@ as a user-facing option.
 The test suite covers the same behaviour from several angles:
 
 - Unit tests in `src/duration_tests.rs`, `src/format.rs`, and `src/runner.rs`
-  cover parsing, cadence selection, locale formatting, and mock-clock
-  orchestration.
-- Property tests in `src/duration_tests.rs` use `proptest` to build compound
-  operands from generated components and check that the suggested rewrite
-  splits back into those components and parses to the same duration.
+  cover parsing, cadence selection, locale formatting, and manual-clock
+  orchestration with an advancing sleeper.
+- Property tests in `src/duration_tests.rs` and `src/clock.rs` use `proptest`
+  to build compound operands and logical-time durations, checking parser
+  rewrites, zero preservation, monotonicity, bounded truncation, and saturation.
 - Behavioural tests in `tests/behaviour.rs` use `rstest-bdd` scenarios from
   `tests/features/sleep_cli.feature`.
 - Snapshot tests in `tests/snapshots.rs` pin representative remaining-time

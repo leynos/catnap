@@ -73,7 +73,7 @@ impl RunConfig {
 /// # Examples
 ///
 /// ```
-/// use std::{io, time::Duration};
+/// use std::time::Duration;
 ///
 /// use catnap::{RunConfig, ThreadLogicalSleeper, run_sleep};
 /// use monotony::StdMonotonicClock;
@@ -84,7 +84,7 @@ impl RunConfig {
 /// let config = RunConfig::new(Duration::from_secs(0), "en-GB");
 /// run_sleep(&clock, &mut sleeper, &mut output, &config)?;
 /// assert!(output.is_empty());
-/// # Ok::<(), io::Error>(())
+/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 ///
 /// # Errors
@@ -140,16 +140,24 @@ mod tests {
     use monotony::test_util::SharedManualMonotonicClock;
 
     use super::{RunConfig, run_sleep};
-    use crate::LogicalSleeper;
+    use crate::{LogicalSleeper, ThreadLogicalSleeper};
 
     struct AdvancingSleeper {
         clock: SharedManualMonotonicClock,
+        sleeper: ThreadLogicalSleeper,
+        requested_sleep_durations: Vec<Duration>,
     }
 
     impl LogicalSleeper for AdvancingSleeper {
-        fn logical_elapsed(&self, real_elapsed: Duration) -> Duration { real_elapsed }
+        fn logical_elapsed(&self, real_elapsed: Duration) -> Duration {
+            self.sleeper.logical_elapsed(real_elapsed)
+        }
 
-        fn sleep(&mut self, logical_duration: Duration) { self.clock.advance(logical_duration); }
+        fn sleep(&mut self, logical_duration: Duration) {
+            self.requested_sleep_durations.push(logical_duration);
+            self.clock
+                .advance(self.sleeper.real_sleep_duration(logical_duration));
+        }
     }
 
     #[test]
@@ -157,6 +165,9 @@ mod tests {
         let clock = SharedManualMonotonicClock::new(Instant::now());
         let mut sleeper = AdvancingSleeper {
             clock: clock.clone(),
+            sleeper: ThreadLogicalSleeper::new(Duration::from_millis(500))
+                .expect("a non-zero logical second should be accepted"),
+            requested_sleep_durations: Vec::new(),
         };
 
         let mut output = Vec::new();
@@ -167,6 +178,10 @@ mod tests {
         assert_eq!(
             String::from_utf8(output),
             Ok("1 second remaining\n".to_owned())
+        );
+        assert_eq!(
+            sleeper.requested_sleep_durations,
+            vec![Duration::from_secs(1), Duration::from_secs(1)]
         );
     }
 }
