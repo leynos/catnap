@@ -104,7 +104,13 @@ fn scale_nanos(duration: Duration, numerator: u128, denominator: u128) -> Durati
 }
 
 fn duration_from_nanos_saturating(nanos: u128) -> Duration {
-    u64::try_from(nanos).map_or(Duration::MAX, Duration::from_nanos)
+    let whole_seconds = nanos.checked_div(NANOS_PER_SECOND).unwrap_or(u128::MAX);
+    let subsecond_nanos = nanos.checked_rem(NANOS_PER_SECOND).unwrap_or(u128::MAX);
+
+    match (u64::try_from(whole_seconds), u32::try_from(subsecond_nanos)) {
+        (Ok(seconds), Ok(nanoseconds)) => Duration::new(seconds, nanoseconds),
+        _ => Duration::MAX,
+    }
 }
 
 #[cfg(test)]
@@ -187,6 +193,16 @@ mod tests {
         assert_eq!(
             scale_logical_to_real(Duration::MAX, Duration::MAX),
             Duration::MAX
+        );
+    }
+
+    #[test]
+    fn preserves_large_representable_real_sleep_durations() {
+        let duration = Duration::from_secs(u64::MAX >> 1);
+
+        assert_eq!(
+            scale_logical_to_real(duration, Duration::from_secs(1)),
+            duration
         );
     }
 

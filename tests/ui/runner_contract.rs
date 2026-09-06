@@ -1,3 +1,6 @@
+//! Trybuild fixture compiling an external consumer of `run_sleep`,
+//! `StdMonotonicClock`, and `ThreadLogicalSleeper`.
+
 use std::{error::Error, time::Duration};
 
 use catnap::{RunConfig, StdMonotonicClock, ThreadLogicalSleeper, run_sleep};

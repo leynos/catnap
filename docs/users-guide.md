@@ -78,7 +78,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 The clock observes monotonic elapsed time, while the sleeper converts between
 real and logical durations and performs the blocking wait. Tests can pair
 Monotony's `SharedManualMonotonicClock` with a local advancing sleeper to keep
-runner orchestration deterministic.
+runner orchestration deterministic. Enable the manual-clock utilities with this
+development dependency:
+
+```toml
+[dev-dependencies]
+monotony = { version = "1.0.0", features = ["test-util"] }
+```
 
 ## Development Tooling
 
