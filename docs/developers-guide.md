@@ -113,8 +113,8 @@ diagnostics but never observes an error value's formatted output.
 
 Compile-fail fixtures, `tests/ui/*_non_exhaustive.rs`, match every public
 variant of an error enum without a wildcard arm. Each is expected to fail with
-`E0004`, which pins `#[non_exhaustive]` on `CliError`, `DurationParseError`,
-and `ClockConfigError`. That contract is what keeps adding an error variant a
+`E0004`, which pins `#[non_exhaustive]` on `CliError`, `DurationParseError`, and
+`ClockConfigError`. That contract is what keeps adding an error variant a
 non-breaking change for downstream crates.
 
 Run the focused harness with:
