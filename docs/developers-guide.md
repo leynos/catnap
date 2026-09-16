@@ -154,35 +154,26 @@ refresh.
 
 ## Spelling gate
 
-Run `make spelling` to enforce en-GB-oxendict spelling in tracked Markdown
-prose. The target checks `typos.toml` for drift, runs the consumer phrase
-scanner, then runs the pinned `typos` release over tracked Markdown files.
-`make markdownlint` depends on this gate, and `make all` runs it with the
-repository's other checks.
+Run the spelling gate with:
 
-The generated configuration combines the shared estate dictionary with the
-repository-specific `typos.local.toml` overlay. Do not edit `typos.toml` by
-hand. Add only narrow identifier, API, proper-name, or immutable-fixture
-exceptions to the local overlay; ordinary prose belongs in Oxford spelling.
-
-The configuration builder is pinned to commit
-`d6da92f02240a79a945c835f69bdd08a888da1d0`. Regenerate the configuration with:
-
-```sh
-TYPOS_CONFIG_BUILDER_COMMIT=d6da92f02240a79a945c835f69bdd08a888da1d0
-uvx --python 3.14 \
-  --from "git+https://github.com/leynos/typos-config-builder.git@${TYPOS_CONFIG_BUILDER_COMMIT}" \
-  typos-config-builder
+```bash
+make spelling
 ```
 
-Use the same command with `--check` in quality gates to detect drift without
-rewriting `typos.toml`. The builder refreshes the shared dictionary into the
-untracked `.typos-oxendict-base.toml` cache only when the authority is newer,
-records refresh metadata in `.typos-oxendict-base.json`, and reuses a valid
-local cache when the authority is unavailable.
+The gate enforces en-GB-oxendict spelling in tracked Markdown prose.
+`make markdownlint` depends on it, and `make all` runs it with the repository's
+other checks.
 
-Typos splits hyphenated phrases into separate words. The consumer-owned
-`scripts/typos_rollout_check.py` therefore reads phrase corrections from the
-shared cache and local overlay, while taking ignore patterns and file
-exclusions from generated `typos.toml`. It reports prohibited phrases without
-duplicating the builder's validation, cache, merge or rendering behaviour.
+The tracked `typos.toml` is regenerated on every run from the live shared
+dictionary and the repository-specific `typos.local.toml` overlay. Never edit
+generated entries by hand. Add only narrow identifier, API, proper-name, or
+immutable-fixture exceptions to the overlay; ordinary prose belongs in Oxford
+spelling. Because the dictionary is live, `typos.toml` must never be drift
+checked in continuous integration.
+
+The shared `typos-config-builder` CLI refreshes the estate dictionary into the
+untracked `.typos-oxendict-base.toml` cache only when the authoritative copy is
+newer, records refresh metadata in `.typos-oxendict-base.json`, and reuses a
+valid cache when the network is unavailable. The gate also enforces exact
+phrase corrections, such as those Typos cannot match because it splits
+hyphenated phrases into separate words.
