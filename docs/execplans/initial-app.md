@@ -165,12 +165,11 @@ build the binary in this configured split target/build directory. The e2e test
 therefore builds `vsleep` explicitly and reads `target_directory` from
 `cargo metadata` before running the compiled binary.
 
-`trybuild` cannot express issue
-[#8](https://github.com/leynos/catnap/issues/8) as written. The issue asks for
-compile-fail tests covering `Display` output, but Rust evaluates `Display` at
-runtime, so a compile-fail fixture only ever captures compiler diagnostics and
-never sees a formatted message. Splitting the harness across both modes was the
-only way to cover the whole request.
+`trybuild` cannot express issue [#8](https://github.com/leynos/catnap/issues/8)
+as written. The issue asks for compile-fail tests covering `Display` output,
+but Rust evaluates `Display` at runtime, so a compile-fail fixture only ever
+captures compiler diagnostics and never sees a formatted message. Splitting the
+harness across both modes was the only way to cover the whole request.
 
 ## Decision Log
 
@@ -181,9 +180,9 @@ This is the only mode that can observe `Display` output.
 
 2026-08-08: Additionally pin `#[non_exhaustive]` on each public error enum with
 compile-fail fixtures. Message text and API stability are separate guarantees:
-the compile-fail snapshots catch the removal of `#[non_exhaustive]`, which would
-silently make every later variant addition a breaking change for downstream
-crates. The `.stderr` snapshots are tied to the toolchain pinned in
+the compile-fail snapshots catch the removal of `#[non_exhaustive]`, which
+would silently make every later variant addition a breaking change for
+downstream crates. The `.stderr` snapshots are tied to the toolchain pinned in
 `rust-toolchain.toml` and are regenerated with `TRYBUILD=overwrite`.
 
 2026-06-01: Use `src/lib.rs` for reusable command, parsing, formatting, and
@@ -308,8 +307,8 @@ Public error UI tests landed on 2026-08-08 for issue
   and the `tests/ui.rs` harness, which standard Cargo test discovery runs.
 - Display coverage: satisfied by `tests/ui/cli_error_display.rs`,
   `tests/ui/duration_parse_error_display.rs`, and
-  `tests/ui/clock_config_error_display.rs`, which compile as external crates and
-  assert every public variant's message.
+  `tests/ui/clock_config_error_display.rs`, which compile as external crates
+  and assert every public variant's message.
 - Compile-fail coverage: satisfied by the `tests/ui/*_non_exhaustive.rs`
   fixtures and their `.stderr` snapshots, which pin `E0004` for each public
   error enum.
