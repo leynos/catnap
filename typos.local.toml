@@ -14,9 +14,9 @@ ignore = [
   '\bmold\b',
   'types: \[[^]]*\blabeled\b',
   '"seconde"',
-  'GitHub Flavored\s+Markdown',
-  'Azure Architecture\s+Center',
   '"ises"',
+  # Inline code spans are masked; the shared dictionary does not mask them yet.
+  '`[^`\n]+`',
 ]
 
 [files]
