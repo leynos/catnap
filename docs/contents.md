@@ -15,6 +15,12 @@ set.
   spelling, structure, Markdown, Architecture Decision Record (ADR), Request
   for Comments (RFC), and roadmap conventions used by this documentation set.
 
+## Architecture decisions
+
+- [ADR 001: Adopt Monotony for monotonic time](adr-001-adopt-monotony-clock.md)
+  records the ownership boundary between Monotony's clock and Catnap's
+  logical-time sleeper.
+
 ## Rust reference material
 
 - [Reliable testing in Rust via dependency injection](reliable-testing-in-rust-via-dependency-injection.md)

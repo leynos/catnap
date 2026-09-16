@@ -47,6 +47,45 @@ The progress interval depends on the full requested duration:
 Remaining time is formatted for the current environment locale where a
 translation is available, with English used as the fallback locale.
 
+## Library API migration
+
+Catnap's library API now separates monotonic time observation from logical-time
+sleeping. The former Catnap clock exports `MonotonicTimestamp` and
+`RealMonotonicClock` have been removed. Library consumers should use Monotony's
+`MonotonicClock` trait and `StdMonotonicClock` implementation, which Catnap
+re-exports.
+
+Catnap retains the `LogicalSleeper` trait and its `ThreadLogicalSleeper`
+implementation for logical-second scaling and blocking sleep. A runner call
+supplies both dependencies explicitly:
+
+```rust,no_run
+use std::{io, time::Duration};
+
+use catnap::{RunConfig, StdMonotonicClock, ThreadLogicalSleeper, run_sleep};
+
+fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let clock = StdMonotonicClock;
+    let mut sleeper = ThreadLogicalSleeper::new(Duration::from_secs(1))?;
+    let config = RunConfig::new(Duration::from_secs(5), "en-GB");
+    let mut progress = io::stderr();
+
+    run_sleep(&clock, &mut sleeper, &mut progress, &config)?;
+    Ok(())
+}
+```
+
+The clock observes monotonic elapsed time, while the sleeper converts between
+real and logical durations and performs the blocking wait. Tests can pair
+Monotony's `SharedManualMonotonicClock` with a local advancing sleeper to keep
+runner orchestration deterministic. Enable the manual-clock utilities with this
+development dependency:
+
+```toml
+[dev-dependencies]
+monotony = { version = "1.0.0", features = ["test-util"] }
+```
+
 ## Development Tooling
 
 The project uses Rust 2024, a pinned nightly toolchain, strict lint settings,
