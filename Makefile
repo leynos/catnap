@@ -49,6 +49,10 @@ clean: ## Remove build artefacts
 test: ## Run tests with warnings treated as errors
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) $(TEST_CMD) $(TEST_FLAGS) $(BUILD_JOBS)
 
+test-workflow-contracts: ## Validate coverage workflow ownership
+	$(UV_ENV) $(UV) run --with 'pytest>=8' --with 'pyyaml>=6' \
+		pytest tests/workflow_contracts -q
+
 
 target/%/$(TARGET): ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(TARGET)
