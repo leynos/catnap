@@ -12,6 +12,13 @@ doctests, a nextest-backed `make test` run skips them; run `cargo test --doc`
 separately as a required additional step when nextest is present.
 `make coverage` uses `cargo llvm-cov` with `lld`.
 
+### Coverage publication
+
+Pull-request CI measures coverage with the ratchet baseline written by `main`.
+It does not contact CodeScene, expose `CS_ACCESS_TOKEN`, or require a full Git
+history. `coverage-main.yml` is the sole publisher: every push to `main`
+regenerates the same serial ratchet baseline and uploads it to CodeScene.
+
 ### GitHub Actions workflow linting
 
 `make lint` runs `yamllint .github/workflows` and `actionlint`, so every

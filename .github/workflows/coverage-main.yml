@@ -1,0 +1,41 @@
+---
+name: Coverage (main)
+
+'on':
+  push:
+    branches: [main]
+
+jobs:
+  coverage-upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@152d9c4784d0ae5877938a984fe6d1f04d718fd8
+      - name: Install coverage linker
+        run: sudo apt-get update && sudo apt-get install --yes clang lld
+      - name: Test and Measure Coverage
+        uses: leynos/shared-actions/.github/actions/generate-coverage@152d9c4784d0ae5877938a984fe6d1f04d718fd8
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
+          RUSTFLAGS: -C link-arg=-fuse-ld=lld
+          CFLAGS: -fuse-ld=lld
+          LDFLAGS: -fuse-ld=lld
+        with:
+          output-path: lcov.info
+          format: lcov
+          with-ratchet: 'true'
+      - name: Upload coverage data to CodeScene
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        if: env.CS_ACCESS_TOKEN != ''
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@152d9c4784d0ae5877938a984fe6d1f04d718fd8
+        with:
+          format: lcov
+          mode: upload
+          access-token: ${{ env.CS_ACCESS_TOKEN }}
+          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
