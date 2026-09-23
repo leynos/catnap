@@ -42,9 +42,15 @@ request can reach, following local reusable-workflow calls transitively, and
 over every other workflow too: only the publisher may hold the token, name the
 CodeScene host, run the CLI or the uploader, or touch the retired
 `CODESCENE_CLI_SHA256` variable. It drives each rule against breaching fixtures
-under `tests/coverage_workflows/`. When adding a workflow, keep CodeScene,
-`cs-coverage` and the token out of it unless it is the publisher; the contract
-names the clause a change breaks.
+under `tests/coverage_workflows/`. The pull-request surface is seeded by every
+event that runs a workflow for a pull request (`pull_request`,
+`pull_request_target`, `merge_group`, the two review events, and
+`workflow_run`), and the push side is followed the same way: a workflow a push
+starts, or one it calls, may run a ratcheted coverage step only behind
+`if: github.event_name == 'pull_request'`, so the publisher stays the
+baseline's only writer. When adding a workflow, keep CodeScene, `cs-coverage`
+and the token out of it unless it is the publisher; the contract names the
+clause a change breaks.
 
 ### GitHub Actions workflow linting
 

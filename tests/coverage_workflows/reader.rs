@@ -149,8 +149,24 @@ pub fn trigger<'a>(workflow: &'a Value, event: &str) -> Option<&'a Value> {
 pub fn starts_on_pull_request(workflow: &Value) -> bool {
     trigger_names(workflow)
         .iter()
-        .any(|name| matches!(name.as_str(), "pull_request" | "pull_request_target"))
+        .any(|name| PULL_REQUEST_EVENTS.contains(&name.as_str()))
 }
+
+/// Events that start a workflow for a pull request, or straight after one.
+///
+/// Besides the two `pull_request` events, a queued merge (`merge_group`) and
+/// a review (`pull_request_review`, `pull_request_review_comment`) run with
+/// the repository's secrets for a same-repository pull request, and a
+/// `workflow_run` workflow runs with secrets after whatever it names, which
+/// may be a pull-request workflow.
+const PULL_REQUEST_EVENTS: [&str; 6] = [
+    "merge_group",
+    "pull_request",
+    "pull_request_review",
+    "pull_request_review_comment",
+    "pull_request_target",
+    "workflow_run",
+];
 
 /// Returns every job of a workflow as `(job id, job mapping)`.
 pub fn jobs(workflow: &Value) -> Vec<(&str, &Mapping)> {
@@ -238,11 +254,21 @@ pub fn job_calls(workflow: &Value) -> Vec<(&str, &str)> {
 /// caller's secrets under `secrets: inherit`. Enumerating triggers alone
 /// leaves exactly that workflow outside every pull-request clause.
 pub fn pull_request_closure(all: &Workflows) -> BTreeSet<String> {
-    let mut reached: BTreeSet<String> = all
-        .iter()
-        .filter(|(_, workflow)| starts_on_pull_request(workflow))
-        .map(|(name, _)| name.clone())
-        .collect();
+    closure_from(
+        all,
+        all.iter()
+            .filter(|(_, workflow)| starts_on_pull_request(workflow))
+            .map(|(name, _)| name.clone())
+            .collect(),
+    )
+}
+
+/// Returns `seeds` and every local workflow they reach through job calls.
+///
+/// A called workflow runs with its caller's event and secrets, so whatever
+/// a seed may do on its trigger, its callees may do too.
+pub fn closure_from(all: &Workflows, seeds: BTreeSet<String>) -> BTreeSet<String> {
+    let mut reached = seeds;
     let mut pending: Vec<String> = reached.iter().cloned().collect();
     while let Some(name) = pending.pop() {
         let Some(workflow) = all.get(&name) else {

@@ -51,6 +51,8 @@ mod reader;
 mod rules;
 #[path = "coverage_workflows/text.rs"]
 mod text;
+#[path = "coverage_workflows/writer_cases.rs"]
+mod writer_cases;
 
 /// Workflows a pull request is known to start.
 ///
@@ -144,6 +146,19 @@ fn only_the_publisher_reaches_codescene() -> Result<()> {
         breaches.is_empty(),
         "CodeScene outside the publisher: {breaches:?}"
     );
+    Ok(())
+}
+
+/// Scenario: every workflow a push starts, other than the publisher, and
+/// every local workflow such a workflow calls, is examined.
+///
+/// Invariant: none can run a ratcheted coverage step on a push, so the
+/// publisher is the baseline's only writer. A callee runs with its caller's
+/// event, so the push side is followed as a closure too.
+#[test]
+fn only_the_publisher_writes_the_baseline() -> Result<()> {
+    let breaches = publisher_rules::second_writers(&reader::workflows()?);
+    ensure!(breaches.is_empty(), "second baseline writers: {breaches:?}");
     Ok(())
 }
 
