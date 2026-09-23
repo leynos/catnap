@@ -22,11 +22,12 @@ Coverage has two workflows, and the split is a contract (concordat's CV-005,
   `publish-artefact: 'false'`. A drop against the ratchet baseline fails the
   pull request. The lane holds no CodeScene credential, has no upload step, and
   never contacts CodeScene.
-- `coverage-main.yml` runs on every push to `main` (and on dispatch). It
-  measures the same source with the same action, format, output path and
-  default baseline files, which writes the ratchet baseline every pull request
-  compares against, then uploads the report to CodeScene in explicit upload
-  mode. The upload step alone binds `CS_ACCESS_TOKEN`, its `if:` carries
+- `coverage-main.yml` runs on every push to `main` and on dispatch. It measures
+  the same source with the same action, format, output path and default
+  baseline files. A push to `main` writes the ratchet baseline every pull
+  request compares against; a dispatch reads it without advancing it. The lane
+  then uploads the report to CodeScene in explicit upload mode. The upload step
+  alone binds `CS_ACCESS_TOKEN`, its `if:` carries
   `github.ref == 'refs/heads/main'` as its own conjunct (a dispatch can name
   any branch), and the workflow's concurrency group never cancels a run in
   progress, so a burst of merges cannot abandon a baseline write; dispatches

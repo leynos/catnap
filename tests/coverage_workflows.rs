@@ -33,7 +33,7 @@
 //! tests below then apply the same functions to the real files.
 
 use anyhow::{Result, bail, ensure};
-use serde_yaml::Value;
+use serde_norway::Value;
 
 #[path = "coverage_workflows/closure_properties.rs"]
 mod closure_properties;

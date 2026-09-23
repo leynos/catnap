@@ -4,7 +4,7 @@
 //! a boolean lets the fixture cases assert *which* clause fired, so a rule
 //! that fails for the wrong reason cannot pass as one that works.
 
-use serde_yaml::{Mapping, Value};
+use serde_norway::{Mapping, Value};
 
 use super::{
     reader::{self, get, uses},

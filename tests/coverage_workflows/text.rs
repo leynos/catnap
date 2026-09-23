@@ -4,7 +4,7 @@
 //! every key and scalar into one line, and the computed-secret reader judges
 //! that text; the rules decide what each finding means.
 
-use serde_yaml::{Mapping, Value};
+use serde_norway::{Mapping, Value};
 
 /// Returns every key and scalar in a parsed value, one per line.
 ///

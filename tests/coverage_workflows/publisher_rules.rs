@@ -6,7 +6,7 @@
 
 use std::iter;
 
-use serde_yaml::{Mapping, Value};
+use serde_norway::{Mapping, Value};
 
 use super::{
     reader::{self, get},

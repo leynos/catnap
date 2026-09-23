@@ -8,7 +8,7 @@
 
 use anyhow::{Context, Result, bail, ensure};
 use rstest::rstest;
-use serde_yaml::Value;
+use serde_norway::Value;
 
 use super::{reader, rules};
 

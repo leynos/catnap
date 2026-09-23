@@ -14,7 +14,7 @@ use cap_std::{
     ambient_authority,
     fs_utf8::{Dir, camino::Utf8Path},
 };
-use serde_yaml::{Mapping, Value};
+use serde_norway::{Mapping, Value};
 
 /// The directory GitHub reads workflows from, relative to the repository.
 const WORKFLOW_PREFIX: &str = ".github/workflows/";
@@ -27,7 +27,7 @@ pub type Workflows = BTreeMap<String, Value>;
 
 /// Parses one workflow, refusing a mapping that declares a key twice.
 ///
-/// `serde_yaml` refuses duplicate keys itself, and this is the one place the
+/// `serde_norway` refuses duplicate keys itself, and this is the one place the
 /// contract parses, so the refusal cannot be bypassed by a second reader. A
 /// parser that kept the last duplicate would let a `runs-on` or an `if:`
 /// carry one value in the file and another in the parse.
@@ -43,7 +43,7 @@ pub type Workflows = BTreeMap<String, Value>;
 /// within one mapping, or declares its triggers under both spellings.
 pub fn parse(name: &str, text: &str) -> Result<Value> {
     let parsed: Value =
-        serde_yaml::from_str(text).with_context(|| format!("parse {name} as YAML"))?;
+        serde_norway::from_str(text).with_context(|| format!("parse {name} as YAML"))?;
     let declares_both = parsed
         .as_mapping()
         .is_some_and(|root| get(root, "on").is_some() && root.get(Value::Bool(true)).is_some());
