@@ -55,6 +55,8 @@ mod reader;
 mod rules;
 #[path = "coverage_workflows/text.rs"]
 mod text;
+#[path = "coverage_workflows/token_check.rs"]
+mod token_check;
 #[path = "coverage_workflows/writer_cases.rs"]
 mod writer_cases;
 #[path = "coverage_workflows/writer_rules.rs"]

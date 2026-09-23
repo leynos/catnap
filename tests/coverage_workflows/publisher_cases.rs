@@ -44,12 +44,12 @@ jobs:
         with:
           with-ratchet: 'true'
 @EXTRA_STEP@
-      - env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        if: "@UPLOAD_IF@"
+      - id: codescene-token
+        run: echo "available=${{ secrets.CS_ACCESS_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+      - if: "@UPLOAD_IF@"
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@abc
         with:
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
+          access-token: ${{ secrets.CS_ACCESS_TOKEN }}
 "#;
 
 /// Renders [`PUBLISHER`] with the pieces a case varies.
@@ -65,7 +65,7 @@ pub(super) const NEVER_CANCEL: &str = "concurrency:\n  group: pub-${{ github.ref
                                        github.event_name }}\n  cancel-in-progress: false";
 /// The upload condition as this repository writes it.
 pub(super) const GUARD: &str =
-    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' }}";
+    "${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' }}";
 
 /// Scenario: a publisher is varied one clause at a time.
 ///
@@ -79,60 +79,62 @@ pub(super) const GUARD: &str =
 /// uploading everywhere but `main`.
 ///
 /// The binding cases delete or move the token's `env` binding. The guard
-/// `env.CS_ACCESS_TOKEN != ''` reads a missing binding as empty and skips the
-/// upload forever, so the binding is asserted rather than inferred.
+/// `steps.codescene-token.outputs.available == 'true'` reads a missing binding as empty and skips
+/// the upload forever, so the binding is asserted rather than inferred.
 #[rstest]
 #[case::complies(NEVER_CANCEL, GUARD, "", None)]
 #[case::disjunction_appended(
     NEVER_CANCEL,
-    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' || github.event_name == \
-     'workflow_dispatch' }}",
+    "${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' || \
+     github.event_name == 'workflow_dispatch' }}",
     "",
     Some("not guarded")
 )]
 #[case::disjunction_prepended(
     NEVER_CANCEL,
-    "${{ github.event_name == 'workflow_dispatch' || env.CS_ACCESS_TOKEN != '' && github.ref == \
-     'refs/heads/main' }}",
+    "${{ github.event_name == 'workflow_dispatch' || steps.codescene-token.outputs.available == \
+     'true' && github.ref == 'refs/heads/main' }}",
     "",
     Some("not guarded")
 )]
 #[case::disjunction_in_extra_conjunct(
     NEVER_CANCEL,
-    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' && github.actor != 'x' || \
-     github.event_name == 'workflow_dispatch' }}",
+    "${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' && \
+     github.actor != 'x' || github.event_name == 'workflow_dispatch' }}",
     "",
     Some("not guarded")
 )]
 #[case::narrowing_conjunct(
     NEVER_CANCEL,
-    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' && github.actor != 'x' }}",
+    "${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' && \
+     github.actor != 'x' }}",
     "",
     Some("not guarded")
 )]
 #[case::never_true(
     NEVER_CANCEL,
-    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' && false }}",
+    "${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' && \
+     false }}",
     "",
     Some("not guarded")
 )]
 #[case::second_ref(
     NEVER_CANCEL,
-    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' && github.ref == \
-     'refs/heads/develop' }}",
+    "${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' && \
+     github.ref == 'refs/heads/develop' }}",
     "",
     Some("not guarded")
 )]
 #[case::negated_group(
     NEVER_CANCEL,
-    "${{ env.CS_ACCESS_TOKEN != '' && !(github.actor == 'x' && github.ref == 'refs/heads/main' && \
-     true) }}",
+    "${{ steps.codescene-token.outputs.available == 'true' && !(github.actor == 'x' && github.ref \
+     == 'refs/heads/main' && true) }}",
     "",
     Some("not guarded")
 )]
 #[case::no_ref_guard(
     NEVER_CANCEL,
-    "${{ env.CS_ACCESS_TOKEN != '' }}",
+    "${{ steps.codescene-token.outputs.available == 'true' }}",
     "",
     Some("not guarded")
 )]
@@ -206,9 +208,11 @@ fn the_publisher_rule_names_the_clause_broken(
     Ok(())
 }
 
-/// The upload step's token, as [`PUBLISHER`] writes it.
-const UPLOAD_TOKEN: &str =
-    "      - env:\n          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}\n";
+/// The token check step's first line, as [`PUBLISHER`] writes it.
+const CHECK_STEP: &str = "      - id: codescene-token\n";
+/// A binding of the token in a step's `env`, indented for a step.
+const STEP_BINDING: &str =
+    "        env:\n          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}\n";
 /// A scope-wide declaration of the token, indented for the workflow root.
 const WIDE_TOKEN: &str = "env:\n  CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}\n";
 
@@ -218,15 +222,15 @@ const REUSABLE: &str = "  forward:\n    uses: ./.github/workflows/elsewhere.yml\
 /// Scenario: the token is moved off the upload step, or declared more widely.
 ///
 /// Invariant: each placement is named. Moving the token to the coverage step
-/// satisfies "some step holds it" while the upload's own guard goes false and
-/// publishing silently stops, and a workflow- or job-level `env` hands it to
-/// every step, so neither may pass as the upload holding it.
+/// satisfies "some step holds it" while the check reports it unset and
+/// publishing silently stops; a workflow- or job-level `env` hands it to every
+/// step; and the upload step's own `env` hands it to the composite action's
+/// nested `upload-artifact` and cache steps, so only the check step's `env` and
+/// the upload's `access-token` input may carry it.
 #[rstest]
 #[case::moved_to_coverage(
-    |source: String| source
-        .replace(UPLOAD_TOKEN, "      - env: {}\n")
-        .replace("        with:\n          with-ratchet", "        env:\n          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}\n        with:\n          with-ratchet"),
-    &["does not bind", "other than the upload"][..],
+    |source: String| source.replace("        with:\n          with-ratchet", &format!("{STEP_BINDING}        with:\n          with-ratchet")),
+    &["in its env", "other than the upload and its check"][..],
 )]
 #[case::workflow_env(|source: String| source.replace("jobs:\n", &format!("{WIDE_TOKEN}jobs:\n")), &["for every job"][..])]
 #[case::job_env(
@@ -245,30 +249,24 @@ const REUSABLE: &str = "  forward:\n    uses: ./.github/workflows/elsewhere.yml\
     |source: String| source.replace("jobs:\n", &format!("jobs:\n{REUSABLE}    secrets: inherit\n")),
     &["to a reusable workflow"][..],
 )]
-#[case::binding_deleted(
-    |source: String| source.replace(UPLOAD_TOKEN, "      - env: {}\n"),
-    &["does not bind"][..],
+#[case::bound_in_the_check(
+    |source: String| source.replace(CHECK_STEP, &format!("{CHECK_STEP}{STEP_BINDING}")),
+    &["in its env"][..],
 )]
-#[case::binding_moved_to_the_input(
-    |source: String| source
-        .replace(UPLOAD_TOKEN, "      - env: {}\n")
-        .replace("access-token: ${{ env.CS_ACCESS_TOKEN }}", "access-token: ${{ secrets.CS_ACCESS_TOKEN }}"),
-    &["does not bind"][..],
-)]
-#[case::binding_renamed(
+#[case::token_in_the_upload_env(
     |source: String| source.replace(
-        UPLOAD_TOKEN,
-        "      - env:\n          CS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}\n",
+        "      - if: \"",
+        "      - env:\n          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}\n        if: \"",
     ),
-    &["does not bind"][..],
+    &["holds CS_ACCESS_TOKEN in its env"][..],
 )]
 #[case::held_elsewhere_in_another_case(
     |source: String| source.replace("        with:\n          with-ratchet", "        env:\n          T: ${{ secrets.Cs_Access_Token }}\n        with:\n          with-ratchet"),
-    &["other than the upload"][..],
+    &["in its env", "other than the upload"][..],
 )]
 #[case::computed_elsewhere(
     |source: String| source.replace("        with:\n          with-ratchet", "        env:\n          T: ${{ secrets['CS_ACCESS_TOKEN'] }}\n        with:\n          with-ratchet"),
-    &["computed name"][..],
+    &["computed name", "in its env"][..],
 )]
 fn the_token_sits_on_the_upload_alone(
     #[case] vary: fn(String) -> String,

@@ -26,16 +26,25 @@ Coverage has two workflows, and the split is a contract (concordat's CV-005,
   the same source with the same action, format, output path, and default
   baseline files. A push to `main` writes the ratchet baseline every pull
   request compares against; a dispatch reads it without advancing it. The lane
-  then uploads the report to CodeScene in explicit upload mode. The upload step
-  alone binds `CS_ACCESS_TOKEN`, its `if:` is exactly
-  `env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main'` (a dispatch
-  can name any branch, and any further conjunct could only narrow, defeat, or
-  invert the upload), and the workflow's concurrency group, keyed on the
-  evaluated `${{ github.ref }}` and `${{ github.event_name }}` at every level,
-  never cancels a run in progress, so a burst of merges cannot abandon a
+  then uploads the report to CodeScene in explicit upload mode. A check step
+  reports whether the secret is set by evaluating
+  `${{ secrets.CS_ACCESS_TOKEN != '' }}` into its output, and no step holds the
+  token in its `env`, because the composite upload action would hand a step
+  `env` to its nested `upload-artifact` and cache steps; the upload step passes
+  the secret as its `access-token` input. The upload's `if:` is exactly
+  `steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main'`
+  (a dispatch can name any branch, and any further conjunct could only narrow,
+  defeat, or invert the upload), and the workflow's concurrency group, keyed on
+  the evaluated `${{ github.ref }}` and `${{ github.event_name }}` at every
+  level, never cancels a run in progress, so a burst of merges cannot abandon a
   baseline write and a dispatch cannot replace a pending push. The workflow
   answers exactly a push to `main` and `workflow_dispatch`, and the coverage
   selection both lanes run is pinned in the contract.
+
+One known exception: a Dependabot pull request merged by the automerge workflow
+with `GITHUB_TOKEN` fires no push event, so that merge is neither measured nor
+uploaded until the next push to `main`; shared-actions #518 tracks the fix.
+There is deliberately no `schedule` trigger to paper over it.
 
 The reasons are both quiet failures: a pull request from a fork cannot read the
 secret, so an upload there is silently skipped, and CodeScene accepts an upload

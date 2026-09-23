@@ -22,26 +22,25 @@ use super::{
         runs_the_cli,
     },
     text::{computes_a_secret, folded, folded_mapping},
+    token_check::{check_findings, check_id, check_steps},
 };
 
 /// The expression that hands a step the secret itself.
 ///
-/// The publisher's placement clauses look for this rather than the bare name,
-/// because the upload's own guard names `env.CS_ACCESS_TOKEN` without holding
-/// anything: a step whose `env` lost the secret would otherwise still read as
-/// receiving it through its `if:`.
+/// The publisher's placement clauses look for this reference to the secret
+/// itself, which is what hands a step the value.
 ///
 /// Case-folded, as the searched text is: context and secret names are
 /// case-insensitive, so `secrets.Cs_Access_Token` is the same reference.
 const SECRET_REFERENCE: &str = "secrets.cs_access_token";
-/// The upload step's `env` binding of the token, whitespace normalized.
-const TOKEN_BINDING: &str = "${{ secrets.CS_ACCESS_TOKEN }}";
 /// The upload action's `access-token` input, whitespace normalized.
-const TOKEN_INPUT: &str = "${{ env.CS_ACCESS_TOKEN }}";
+///
+/// Passed as the secret itself, not through the step's `env`: the action is
+/// composite and hands its step `env` to its nested `upload-artifact` and cache
+/// steps, while it binds the token itself from `inputs.access-token`.
+const TOKEN_INPUT: &str = "${{ secrets.CS_ACCESS_TOKEN }}";
 /// The conjunct that restricts the publisher's upload to the trunk.
 const MAIN_REF_GUARD: &str = "github.ref == 'refs/heads/main'";
-/// The conjunct that skips the upload when the secret is unset.
-const TOKEN_GUARD: &str = "env.CS_ACCESS_TOKEN != ''";
 /// The triggers the publisher answers, exactly: a push to `main` writes the
 /// baseline and uploads, and a dispatch measures without advancing it.
 const PUBLISHER_TRIGGERS: [&str; 2] = ["push", "workflow_dispatch"];
@@ -113,14 +112,19 @@ pub fn conjuncts(condition: &str) -> Option<Vec<String>> {
     )
 }
 
-/// Returns whether an upload step's condition is exactly the token and ref
-/// guards.
+/// Returns the conjunct that reads the token check step's answer.
+fn check_guard(id: &str) -> String { format!("steps.{id}.outputs.available == 'true'") }
+
+/// Returns whether an upload step's condition is exactly the token check's
+/// answer and the ref guard.
 ///
 /// Exact set equality, not "contains the ref conjunct": an extra conjunct
 /// can only narrow or defeat the upload (`&& false`, a second ref), and a
 /// negated group would carry the ref conjunct while uploading everywhere
 /// else. Nothing a publisher needs is lost by refusing all of them.
-fn guarded_to_main(step: &Mapping) -> bool { guarded_exactly(step, &[TOKEN_GUARD, MAIN_REF_GUARD]) }
+fn guarded_to_main(step: &Mapping, check_id: Option<&str>) -> bool {
+    check_id.is_some_and(|id| guarded_exactly(step, &[check_guard(id).as_str(), MAIN_REF_GUARD]))
+}
 
 /// Returns whether a step's condition is exactly the conjuncts `guards`.
 pub(super) fn guarded_exactly(step: &Mapping, guards: &[&str]) -> bool {
@@ -132,19 +136,6 @@ pub(super) fn guarded_exactly(step: &Mapping, guards: &[&str]) -> bool {
                 parts.iter().map(String::as_str).collect();
             found == guards.iter().copied().collect()
         })
-}
-
-/// Returns whether a step binds the token in its own `env`, as the secret.
-///
-/// Asserted positively because the upload's guard, `env.CS_ACCESS_TOKEN !=
-/// ''`, reads a missing binding as an empty string: with the binding deleted
-/// the guard is simply false, the upload skips forever, and nothing fails.
-fn binds_the_token(step: &Mapping) -> bool {
-    get(step, "env")
-        .and_then(Value::as_mapping)
-        .and_then(|env| get(env, ACCESS_TOKEN))
-        .and_then(Value::as_str)
-        .is_some_and(|value| normalized(value) == TOKEN_BINDING)
 }
 
 /// Returns the reasons the token is declared in a scope wider than one step.
@@ -174,25 +165,29 @@ fn wide_token_findings(workflow: &Value) -> Vec<String> {
 
 /// Returns the reasons the token reaches somewhere other than the upload.
 ///
-/// "Some step has the token" proves nothing: moving it to the coverage step
-/// satisfies that while the upload's own guard goes false and publishing
-/// silently stops. So the uploading step must bind it, no other step may
-/// hold it, and no wider scope may declare it.
+/// Only the upload's `access-token` input and the check step's expression
+/// may name the secret, and no step may hold it in its `env`: the upload
+/// action is composite and hands a step `env` to its nested
+/// `upload-artifact` and cache steps, and a wider scope reaches every step at once.
 fn token_findings(workflow: &Value) -> Vec<String> {
     let mut findings = wide_token_findings(workflow);
     if computes_a_secret(&folded(workflow)) {
         findings.push("the publisher reaches a secret by a computed name".to_owned());
     }
+    findings.extend(check_findings(workflow));
+    let checks = check_steps(workflow);
     for step in reader::steps(workflow) {
         let holds = folded_mapping(step).contains(SECRET_REFERENCE);
-        if is_upload(step) && !binds_the_token(step) {
+        let is_exempt = is_upload(step) || checks.iter().any(|check| std::ptr::eq(*check, step));
+        if get(step, "env").is_some_and(|env| folded(env).contains("cs_access_token")) {
             findings.push(format!(
-                "the upload step does not bind {ACCESS_TOKEN} in its env"
+                "a publisher step holds {ACCESS_TOKEN} in its env, which the upload's nested \
+                 steps would inherit"
             ));
         }
-        if !is_upload(step) && holds {
+        if !is_exempt && holds {
             findings.push(format!(
-                "a step other than the upload receives {ACCESS_TOKEN}"
+                "a step other than the upload and its check receives {ACCESS_TOKEN}"
             ));
         }
     }
@@ -324,9 +319,11 @@ pub fn publisher_findings(workflow: &Value) -> Vec<String> {
     if uploads.is_empty() {
         findings.push("the main publisher uploads nothing to CodeScene".to_owned());
     }
-    if uploads.iter().any(|step| !guarded_to_main(step)) {
+    let check = check_id(workflow);
+    if uploads.iter().any(|step| !guarded_to_main(step, check)) {
         findings.push(format!(
-            "an upload step is not guarded by exactly `{TOKEN_GUARD} && {MAIN_REF_GUARD}`"
+            "an upload step is not guarded by exactly the token check's answer and \
+             `{MAIN_REF_GUARD}`"
         ));
     }
     findings.extend(token_findings(workflow));
@@ -339,7 +336,7 @@ pub fn publisher_findings(workflow: &Value) -> Vec<String> {
 /// Kept apart from [`publisher_findings`] because it compares two steps of a
 /// complete publisher: each upload must read the file, in the format, that a
 /// coverage step writes, or it uploads nothing useful while every other
-/// clause passes; and it must pass the token its step binds as its
+/// clause passes; and it must pass the secret itself as its
 /// `access-token`, or its own guard holds while the action runs
 /// unauthenticated.
 pub fn wiring_findings(workflow: &Value) -> Vec<String> {
@@ -360,7 +357,7 @@ pub fn wiring_findings(workflow: &Value) -> Vec<String> {
         let token = input_str(upload, "access-token").map(normalized);
         if token.as_deref() != Some(TOKEN_INPUT) {
             findings.push(format!(
-                "the upload's access-token is {token:?}, not the token its step binds"
+                "the upload's access-token is {token:?}, not the secret itself"
             ));
         }
     }

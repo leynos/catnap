@@ -48,7 +48,7 @@ fn the_publisher_group_and_triggers_are_pinned(
 }
 
 /// A publisher wired as this repository wires it: the upload reads what the
-/// coverage step writes and passes the token its step was given.
+/// coverage step writes and passes the secret itself as its token.
 const WIRED: &str = r"
 on:
   push:
@@ -60,13 +60,11 @@ jobs:
         with:
           output-path: lcov.info
           format: lcov
-      - env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@abc
+      - uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@abc
         with:
           path: lcov.info
           format: lcov
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
+          access-token: ${{ secrets.CS_ACCESS_TOKEN }}
 ";
 
 /// Scenario: the upload is rewired away from what was measured, or from the
@@ -88,19 +86,19 @@ jobs:
     Some("which no coverage step writes")
 )]
 #[case::no_token(
-    "          access-token: ${{ env.CS_ACCESS_TOKEN }}\n",
+    "          access-token: ${{ secrets.CS_ACCESS_TOKEN }}\n",
     "",
-    Some("not the token its step binds")
+    Some("not the secret itself")
 )]
 #[case::other_token(
-    "${{ env.CS_ACCESS_TOKEN }}",
-    "${{ env.OTHER }}",
-    Some("not the token its step binds")
-)]
-#[case::secret_directly(
-    "${{ env.CS_ACCESS_TOKEN }}",
     "${{ secrets.CS_ACCESS_TOKEN }}",
-    Some("not the token its step binds")
+    "${{ secrets.OTHER }}",
+    Some("not the secret itself")
+)]
+#[case::through_the_env(
+    "${{ secrets.CS_ACCESS_TOKEN }}",
+    "${{ env.CS_ACCESS_TOKEN }}",
+    Some("not the secret itself")
 )]
 fn the_upload_sends_what_was_measured(
     #[case] from: &str,
@@ -124,5 +122,60 @@ fn the_upload_sends_what_was_measured(
             "expected one finding naming {clause:?}, saw {findings:?}"
         ),
     }
+    Ok(())
+}
+
+/// Scenario: the token check step is broken one way at a time, or the upload
+/// stops reading its answer.
+///
+/// Invariant: each is named. A deleted check leaves the upload skipping
+/// forever, a check behind an `if:` can be skipped, one with no id cannot be
+/// read, a changed command answers something else, and an upload guarded on
+/// the environment or on another step reads no check.
+#[rstest]
+#[case::check_behind_an_if(
+    "      - id: codescene-token\n",
+    "      - id: codescene-token\n        if: always()\n",
+    "carries an `if:`"
+)]
+#[case::check_without_an_id(
+    "      - id: codescene-token\n        run:",
+    "      - run:",
+    "has no id"
+)]
+#[case::check_command_changed(
+    "secrets.CS_ACCESS_TOKEN != ''",
+    "true",
+    "exactly one token check step"
+)]
+#[case::check_deleted(
+    "      - id: codescene-token\n        run: echo \"available=${{ secrets.CS_ACCESS_TOKEN != '' \
+     }}\" >> \"$GITHUB_OUTPUT\"\n",
+    "",
+    "exactly one token check step"
+)]
+#[case::guard_on_the_environment(
+    "steps.codescene-token.outputs.available == 'true'",
+    "env.CS_ACCESS_TOKEN != ''",
+    "not guarded"
+)]
+#[case::guard_on_another_step(
+    "steps.codescene-token.outputs.available == 'true'",
+    "steps.other.outputs.available == 'true'",
+    "not guarded"
+)]
+fn the_token_check_is_exact(
+    #[case] from: &str,
+    #[case] to: &str,
+    #[case] expected: &str,
+) -> Result<()> {
+    let complying = publisher(NEVER_CANCEL, GUARD, "");
+    let source = complying.replacen(from, to, 1);
+    ensure!(source != complying, "the case changed nothing");
+    let findings = rules::publisher_findings(&parse(&source)?);
+    ensure!(
+        findings.iter().any(|f| f.contains(expected)),
+        "expected a finding naming {expected:?}, saw {findings:?}"
+    );
     Ok(())
 }
