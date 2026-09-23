@@ -61,8 +61,9 @@ pub(super) fn publisher(concurrency: &str, upload_if: &str, extra_step: &str) ->
 }
 
 /// The publisher's concurrency block as this repository writes it.
-pub(super) const NEVER_CANCEL: &str = "concurrency:\n  group: pub-${{ github.ref }}-${{ \
-                                       github.event_name }}\n  cancel-in-progress: false";
+pub(super) const NEVER_CANCEL: &str = "concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false";
 /// The upload condition as this repository writes it.
 pub(super) const GUARD: &str =
     "${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' }}";
@@ -139,50 +140,50 @@ pub(super) const GUARD: &str =
     Some("not guarded")
 )]
 #[case::cancels(
-    "concurrency:\n  group: pub-${{ github.ref }}-${{ github.event_name }}\n  cancel-in-progress: \
-     true",
+    "concurrency:\n  group: ${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true",
     GUARD,
     "",
     Some("cancel")
 )]
 #[case::cancels_by_expression(
-    "concurrency:\n  group: pub-${{ github.ref }}-${{ github.event_name }}\n  cancel-in-progress: \
-     ${{ true }}",
+    "concurrency:\n  group: ${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: ${{ \
+     true }}",
     GUARD,
     "",
     Some("cancel")
 )]
 #[case::no_group("", GUARD, "", Some("no concurrency group"))]
-#[case::dispatches_share_the_group(
+#[case::constant_group(
     "concurrency:\n  group: pub\n  cancel-in-progress: false",
     GUARD,
     "",
-    Some("a dispatch can replace a pending push")
+    Some("not exactly")
 )]
-#[case::ref_only_group(
-    "concurrency:\n  group: pub-${{ github.ref }}\n  cancel-in-progress: false",
+#[case::keyed_on_the_event_too(
+    "concurrency:\n  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}\n  \
+     cancel-in-progress: false",
     GUARD,
     "",
-    Some("a dispatch can replace a pending push")
+    Some("not exactly")
 )]
-#[case::event_only_group(
-    "concurrency:\n  group: pub-${{ github.event_name }}\n  cancel-in-progress: false",
+#[case::keyed_on_the_event_only(
+    "concurrency:\n  group: ${{ github.workflow }}-${{ github.event_name }}\n  \
+     cancel-in-progress: false",
     GUARD,
     "",
-    Some("a dispatch can replace a pending push")
+    Some("not exactly")
 )]
 #[case::literal_ref(
-    "concurrency:\n  group: pub-github.ref-${{ github.event_name }}\n  cancel-in-progress: false",
+    "concurrency:\n  group: ${{ github.workflow }}-github.ref\n  cancel-in-progress: false",
     GUARD,
     "",
-    Some("a dispatch can replace a pending push")
+    Some("not exactly")
 )]
-#[case::literal_keys(
-    "concurrency:\n  group: coverage-main-github.ref-github.event_name\n  cancel-in-progress: \
-     false",
+#[case::spacing_is_not_shape(
+    "concurrency:\n  group: ${{github.workflow}}-${{  github.ref  }}\n  cancel-in-progress: false",
     GUARD,
     "",
-    Some("a dispatch can replace a pending push")
+    None
 )]
 #[case::token_elsewhere(
     NEVER_CANCEL,

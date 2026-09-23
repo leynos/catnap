@@ -23,7 +23,7 @@ use super::{
 #[case::constant_job_group(
     "  coverage:\n",
     "  coverage:\n    concurrency:\n      group: upload\n",
-    "a dispatch can replace a pending push"
+    "not exactly"
 )]
 #[case::schedule_added(
     "  workflow_dispatch:\n",

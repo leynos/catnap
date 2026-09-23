@@ -20,14 +20,13 @@ name: Coverage (main)
   workflow_dispatch:
 
 # A run in progress is never cancelled. A cancelled publisher abandons both its
-# upload and its ratchet baseline write. With cancellation off, a newer push
-# waits for the running one and replaces any run still pending, so the newest
-# baseline wins. Dispatches queue in a group of their own: GitHub keeps one
-# pending run per group, so a dispatch sharing the pushes' group could replace
-# a pending push, and a dispatch never advances the baseline.
-# `tests/coverage_workflows.rs` refuses both cancellation and a shared group.
+# upload and its ratchet baseline write. The group is keyed on the ref alone:
+# runs never overlap, and a newer trigger replaces any run still pending, so
+# the survivor is the newest main and uploads land in commit order. Keying on
+# the event too would let an earlier dispatch finish after a newer push and
+# upload older coverage last. `tests/coverage_workflows.rs` pins this group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

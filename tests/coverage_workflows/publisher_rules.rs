@@ -238,8 +238,12 @@ fn concurrency_findings(workflow: &Value) -> Vec<String> {
         .map(|_| "the publisher may cancel a run in progress".to_owned());
     let shared = blocks
         .iter()
-        .filter(|block| !separates_events(block))
-        .map(|_| "a dispatch can replace a pending push in the publisher's group".to_owned());
+        .filter(|block| !is_keyed_on_the_ref(block))
+        .map(|_| {
+            "the publisher's concurrency group is not exactly `${{ github.workflow }}-${{ \
+             github.ref }}`"
+                .to_owned()
+        });
     missing.into_iter().chain(cancels).chain(shared).collect()
 }
 
@@ -251,17 +255,20 @@ fn may_cancel(concurrency: &Value) -> bool {
         .is_some_and(|value| value.as_bool() != Some(false))
 }
 
-/// Returns whether a concurrency block's group is keyed on the evaluated ref
-/// and event.
+/// The publisher's concurrency group, exactly, whitespace removed.
+const PUBLISHER_GROUP: &str = "${{github.workflow}}-${{github.ref}}";
+
+/// Returns whether a concurrency block's group is exactly the workflow and the
+/// evaluated ref.
 ///
-/// GitHub keeps one pending run per group and a newer arrival replaces it.
-/// With a constant group a branch dispatch replaces main's pending push and
-/// then skips the ref-guarded upload; with a ref-only group a dispatch on
-/// main replaces a pending push, and only a push writes the baseline. Both
-/// keys must be evaluated expressions: a literal `github.ref` in the group
-/// names the word and keys nothing. Every level is read, since a constant
-/// job-level group serializes the upload job across refs and events alike.
-fn separates_events(concurrency: &Value) -> bool {
+/// One group per ref, never per event: runs in it never overlap, and the
+/// survivor of any replacement is the newest trigger, whose commit is the
+/// newest `main` at trigger time, so uploads land in commit order. A group
+/// keyed on the event as well lets an earlier dispatch finish after a newer
+/// push and upload older coverage last. The key must be the evaluated
+/// expression; a literal `github.ref` keys nothing. Every level is read,
+/// since a job-level group of another shape overrides the workflow's.
+fn is_keyed_on_the_ref(concurrency: &Value) -> bool {
     concurrency
         .as_str()
         .or_else(|| {
@@ -270,10 +277,7 @@ fn separates_events(concurrency: &Value) -> bool {
                 .and_then(|mapping| get(mapping, "group"))
                 .and_then(Value::as_str)
         })
-        .is_some_and(|group| {
-            let squeezed: String = group.split_whitespace().collect();
-            squeezed.contains("${{github.ref}}") && squeezed.contains("${{github.event_name}}")
-        })
+        .is_some_and(|group| group.split_whitespace().collect::<String>() == PUBLISHER_GROUP)
 }
 
 /// Returns the reasons the publisher's required work might never run.
