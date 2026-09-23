@@ -91,8 +91,9 @@ missing_docs                        = "deny"
 missing_crate_level_docs            = "deny"
 
 [dev-dependencies]
+anyhow = "1.0.102"
 assert_cmd = "2.2.2"
-cap-std = "4.0.2"
+cap-std = { version = "4.0.2", features = ["fs_utf8"] }
 insta = "1.47.2"
 mockall = "0.14.0"
 predicates = "3.1.4"
@@ -100,6 +101,7 @@ proptest = { version = "1.11.0", default-features = false, features = ["std"] }
 rstest = "0.27.0"
 rstest-bdd = "0.6.0"
 rstest-bdd-macros = "0.6.0"
+serde_yaml = "0.9.34"
 serde_json = "1.0.150"
 tempfile = "3.27.0"
 trybuild = "1.0.120"

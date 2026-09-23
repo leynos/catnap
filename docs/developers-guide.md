@@ -14,10 +14,36 @@ separately as a required additional step when nextest is present.
 
 ### Coverage publication
 
-Pull-request CI measures coverage with the ratchet baseline written by `main`.
-It does not contact CodeScene, expose `CS_ACCESS_TOKEN`, or require a full Git
-history. `coverage-main.yml` is the sole publisher: every push to `main`
-regenerates the same serial ratchet baseline and uploads it to CodeScene.
+Coverage has two workflows, and the split is a contract (concordat's CV-005,
+`main-owned-codescene-coverage`), not a convention.
+
+- `ci.yml` measures lld-linked lcov coverage on every pull request with the
+  shared `generate-coverage` action, `with-ratchet: 'true'` and
+  `publish-artefact: 'false'`. A drop against the ratchet baseline fails the
+  pull request. The lane holds no CodeScene credential, has no upload step, and
+  never contacts CodeScene.
+- `coverage-main.yml` runs on every push to `main` (and on dispatch). It
+  measures the same source with the same action, format, output path and
+  default baseline files, which writes the ratchet baseline every pull request
+  compares against, then uploads the report to CodeScene in explicit upload
+  mode. The upload step alone binds `CS_ACCESS_TOKEN`, its `if:` carries
+  `github.ref == 'refs/heads/main'` as its own conjunct (a dispatch can name
+  any branch), and the workflow's concurrency group never cancels a run in
+  progress, so a burst of merges cannot abandon a baseline write; dispatches
+  queue in a group of their own, so one cannot replace a pending push.
+
+The reasons are both quiet failures: a pull request from a fork cannot read the
+secret, so an upload there is silently skipped, and CodeScene accepts an upload
+only for a branch it analyses, which a pull request head is not.
+
+`tests/coverage_workflows.rs` enforces the split over every workflow a pull
+request can reach, following local reusable-workflow calls transitively, and
+over every other workflow too: only the publisher may hold the token, name the
+CodeScene host, run the CLI or the uploader, or touch the retired
+`CODESCENE_CLI_SHA256` variable. It drives each rule against breaching fixtures
+under `tests/coverage_workflows/`. When adding a workflow, keep CodeScene,
+`cs-coverage` and the token out of it unless it is the publisher; the contract
+names the clause a change breaks.
 
 ### GitHub Actions workflow linting
 
