@@ -40,6 +40,11 @@ const TOKEN_BINDING: &str = "${{ secrets.CS_ACCESS_TOKEN }}";
 const TOKEN_INPUT: &str = "${{ env.CS_ACCESS_TOKEN }}";
 /// The conjunct that restricts the publisher's upload to the trunk.
 const MAIN_REF_GUARD: &str = "github.ref == 'refs/heads/main'";
+/// The conjunct that skips the upload when the secret is unset.
+const TOKEN_GUARD: &str = "env.CS_ACCESS_TOKEN != ''";
+/// The triggers the publisher answers, exactly: a push to `main` writes the
+/// baseline and uploads, and a dispatch measures without advancing it.
+const PUBLISHER_TRIGGERS: [&str; 2] = ["push", "workflow_dispatch"];
 
 /// Returns whether a workflow is triggered by a push restricted to `main`.
 ///
@@ -77,13 +82,16 @@ fn unquoted(body: &str) -> String {
         .collect()
 }
 
-/// Returns the conjuncts of an `if:` condition, or `None` if it has a `||`.
+/// Returns the conjuncts of an `if:` condition, or `None` if it has a `||` or
+/// a parenthesis outside a quoted literal.
 ///
 /// Quoted literals are blanked before the operators are looked for, so a
 /// `||` inside a string does not count and an `&&` inside one does not
 /// split. A disjunction anywhere makes every conjunct optional, which is why
 /// it is refused rather than parsed: `... && ref == main || dispatch` passes
 /// any substring search for the ref and uploads a dispatch from any branch.
+/// A parenthesis can group or negate conjuncts, as in `!(a && ref == main)`,
+/// so a flat split would report a conjunct the expression does not require.
 pub fn conjuncts(condition: &str) -> Option<Vec<String>> {
     let trimmed = condition.trim();
     let body = trimmed
@@ -91,7 +99,7 @@ pub fn conjuncts(condition: &str) -> Option<Vec<String>> {
         .and_then(|inner| inner.strip_suffix("}}"))
         .unwrap_or(trimmed);
     let blanked = unquoted(body);
-    if blanked.contains("||") {
+    if blanked.contains("||") || blanked.contains(['(', ')']) {
         return None;
     }
     let operators: Vec<usize> = blanked.match_indices("&&").map(|(at, _)| at).collect();
@@ -105,40 +113,25 @@ pub fn conjuncts(condition: &str) -> Option<Vec<String>> {
     )
 }
 
-/// Returns whether an upload step's condition confines it to `main`.
-fn guarded_to_main(step: &Mapping) -> bool { guarded_by(step, MAIN_REF_GUARD) }
+/// Returns whether an upload step's condition is exactly the token and ref
+/// guards.
+///
+/// Exact set equality, not "contains the ref conjunct": an extra conjunct
+/// can only narrow or defeat the upload (`&& false`, a second ref), and a
+/// negated group would carry the ref conjunct while uploading everywhere
+/// else. Nothing a publisher needs is lost by refusing all of them.
+fn guarded_to_main(step: &Mapping) -> bool { guarded_exactly(step, &[TOKEN_GUARD, MAIN_REF_GUARD]) }
 
-/// Returns whether a step's condition carries `guard` as a whole conjunct.
-fn guarded_by(step: &Mapping, guard: &str) -> bool {
+/// Returns whether a step's condition is exactly the conjuncts `guards`.
+pub(super) fn guarded_exactly(step: &Mapping, guards: &[&str]) -> bool {
     get(step, "if")
         .and_then(Value::as_str)
         .and_then(conjuncts)
-        .is_some_and(|parts| parts.iter().any(|part| part == guard))
-}
-
-/// The conjunct that keeps a lane's coverage step off a push.
-const PULL_REQUEST_GUARD: &str = "github.event_name == 'pull_request'";
-
-/// Returns the reasons a workflow other than the publisher could write the
-/// ratchet baseline.
-///
-/// The shared action saves the baseline on any push to `main` that runs a
-/// ratcheted coverage step. A workflow a push starts, or one such a workflow
-/// calls (a callee runs with its caller's event), would race the publisher
-/// for the baseline every pull request is measured against, so each of its
-/// ratcheted coverage steps must carry the pull-request guard as a conjunct.
-pub fn second_writer_findings(workflow: &Value) -> Vec<String> {
-    reader::steps(workflow)
-        .into_iter()
-        .filter(|step| {
-            is_coverage(step)
-                && input_is(step, "with-ratchet", true)
-                && !guarded_by(step, PULL_REQUEST_GUARD)
+        .is_some_and(|parts| {
+            let found: std::collections::BTreeSet<&str> =
+                parts.iter().map(String::as_str).collect();
+            found == guards.iter().copied().collect()
         })
-        .map(|_| {
-            format!("a ratcheted coverage step can run on push without `{PULL_REQUEST_GUARD}`")
-        })
-        .collect()
 }
 
 /// Returns whether a step binds the token in its own `env`, as the secret.
@@ -250,7 +243,7 @@ fn concurrency_findings(workflow: &Value) -> Vec<String> {
         .map(|_| "the publisher may cancel a run in progress".to_owned());
     let shared = blocks
         .iter()
-        .filter(|block| is_dispatchable(workflow) && !separates_events(block))
+        .filter(|block| !separates_events(block))
         .map(|_| "a dispatch can replace a pending push in the publisher's group".to_owned());
     missing.into_iter().chain(cancels).chain(shared).collect()
 }
@@ -263,20 +256,16 @@ fn may_cancel(concurrency: &Value) -> bool {
         .is_some_and(|value| value.as_bool() != Some(false))
 }
 
-/// Returns whether anything other than a push can start the workflow.
-fn is_dispatchable(workflow: &Value) -> bool {
-    reader::trigger_names(workflow)
-        .iter()
-        .any(|name| name != "push")
-}
-
-/// Returns whether a concurrency block's group names the triggering event.
+/// Returns whether a concurrency block's group is keyed on the evaluated ref
+/// and event.
 ///
 /// GitHub keeps one pending run per group and a newer arrival replaces it.
-/// A dispatch sharing the pushes' group can therefore replace a pending push,
-/// and a dispatch never advances the baseline, so that push's baseline is
-/// never written. Naming the event in the group gives dispatches a queue of
-/// their own.
+/// With a constant group a branch dispatch replaces main's pending push and
+/// then skips the ref-guarded upload; with a ref-only group a dispatch on
+/// main replaces a pending push, and only a push writes the baseline. Both
+/// keys must be evaluated expressions: a literal `github.ref` in the group
+/// names the word and keys nothing. Every level is read, since a constant
+/// job-level group serializes the upload job across refs and events alike.
 fn separates_events(concurrency: &Value) -> bool {
     concurrency
         .as_str()
@@ -286,7 +275,10 @@ fn separates_events(concurrency: &Value) -> bool {
                 .and_then(|mapping| get(mapping, "group"))
                 .and_then(Value::as_str)
         })
-        .is_some_and(|group| group.contains("github.event_name"))
+        .is_some_and(|group| {
+            let squeezed: String = group.split_whitespace().collect();
+            squeezed.contains("${{github.ref}}") && squeezed.contains("${{github.event_name}}")
+        })
 }
 
 /// Returns the reasons the publisher's required work might never run.
@@ -320,6 +312,13 @@ fn reachability_findings(workflow: &Value) -> Vec<String> {
 /// Returns the reasons a main publisher fails to publish what CV-005 requires.
 pub fn publisher_findings(workflow: &Value) -> Vec<String> {
     let mut findings = reachability_findings(workflow);
+    let mut triggers = reader::trigger_names(workflow);
+    triggers.sort();
+    if triggers != PUBLISHER_TRIGGERS {
+        findings.push(format!(
+            "the publisher answers {triggers:?}, not exactly {PUBLISHER_TRIGGERS:?}"
+        ));
+    }
     let steps = reader::steps(workflow);
     let uploads: Vec<_> = steps.iter().filter(|step| is_upload(step)).collect();
     if uploads.is_empty() {
@@ -327,7 +326,7 @@ pub fn publisher_findings(workflow: &Value) -> Vec<String> {
     }
     if uploads.iter().any(|step| !guarded_to_main(step)) {
         findings.push(format!(
-            "an upload step is not guarded by `{MAIN_REF_GUARD}`"
+            "an upload step is not guarded by exactly `{TOKEN_GUARD} && {MAIN_REF_GUARD}`"
         ));
     }
     findings.extend(token_findings(workflow));
@@ -366,33 +365,4 @@ pub fn wiring_findings(workflow: &Value) -> Vec<String> {
         }
     }
     findings
-}
-
-/// Returns each ratcheted coverage step a push can run outside the publisher.
-///
-/// Seeds are the workflows a push starts, other than the publisher; the
-/// closure then takes in every local workflow they call, since a callee runs
-/// with its caller's push. Each entry names the workflow and the finding.
-pub fn second_writers(all: &reader::Workflows) -> Vec<String> {
-    let is_push_lane = |workflow: &Value| {
-        reader::trigger_names(workflow)
-            .iter()
-            .any(|name| name == "push")
-            && !publishes_from_main(workflow)
-    };
-    let seeds = all
-        .iter()
-        .filter(|(_, workflow)| is_push_lane(workflow))
-        .map(|(name, _)| name.clone())
-        .collect();
-    reader::closure_from(all, seeds)
-        .iter()
-        .filter_map(|name| Some((name, all.get(name)?)))
-        .filter(|(_, workflow)| !publishes_from_main(workflow))
-        .flat_map(|(name, workflow)| {
-            second_writer_findings(workflow)
-                .into_iter()
-                .map(move |finding| format!("{name}: {finding}"))
-        })
-        .collect()
 }

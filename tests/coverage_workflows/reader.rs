@@ -150,6 +150,31 @@ pub fn starts_on_pull_request(workflow: &Value) -> bool {
     trigger_names(workflow)
         .iter()
         .any(|name| PULL_REQUEST_EVENTS.contains(&name.as_str()))
+        || pushes_beyond_main(workflow)
+}
+
+/// Returns whether a workflow answers a push to a branch other than `main`.
+///
+/// A same-repository pull request's head branch is pushed to, and a push runs
+/// with the repository's secrets, so a push trigger is part of the
+/// pull-request surface unless it is limited to exactly `branches: [main]` or
+/// to tags alone. Every other shape, the bare scalar, a glob, a
+/// `branches-ignore` list, is read as reaching a pull request's branch.
+fn pushes_beyond_main(workflow: &Value) -> bool {
+    if !trigger_names(workflow).iter().any(|name| name == "push") {
+        return false;
+    }
+    let Some(push) = trigger(workflow, "push").and_then(Value::as_mapping) else {
+        return true;
+    };
+    get(push, "branches").map_or_else(
+        || get(push, "tags").is_none(),
+        |branches| {
+            branches.as_sequence().is_none_or(|listed| {
+                listed.len() != 1 || listed.first().and_then(Value::as_str) != Some("main")
+            })
+        },
+    )
 }
 
 /// Events that start a workflow for a pull request, or straight after one.
@@ -158,8 +183,10 @@ pub fn starts_on_pull_request(workflow: &Value) -> bool {
 /// a review (`pull_request_review`, `pull_request_review_comment`) run with
 /// the repository's secrets for a same-repository pull request, and a
 /// `workflow_run` workflow runs with secrets after whatever it names, which
-/// may be a pull-request workflow.
-const PULL_REQUEST_EVENTS: [&str; 6] = [
+/// may be a pull-request workflow. An `issue_comment` fires on pull-request
+/// comments too, with the repository's secrets.
+const PULL_REQUEST_EVENTS: [&str; 7] = [
+    "issue_comment",
     "merge_group",
     "pull_request",
     "pull_request_review",

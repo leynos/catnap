@@ -53,7 +53,7 @@ jobs:
 "#;
 
 /// Renders [`PUBLISHER`] with the pieces a case varies.
-fn publisher(concurrency: &str, upload_if: &str, extra_step: &str) -> String {
+pub(super) fn publisher(concurrency: &str, upload_if: &str, extra_step: &str) -> String {
     PUBLISHER
         .replace("@CONCURRENCY@", concurrency)
         .replace("@UPLOAD_IF@", upload_if)
@@ -61,22 +61,22 @@ fn publisher(concurrency: &str, upload_if: &str, extra_step: &str) -> String {
 }
 
 /// The publisher's concurrency block as this repository writes it.
-const NEVER_CANCEL: &str =
-    "concurrency:\n  group: pub-${{ github.event_name }}\n  cancel-in-progress: false";
+pub(super) const NEVER_CANCEL: &str = "concurrency:\n  group: pub-${{ github.ref }}-${{ \
+                                       github.event_name }}\n  cancel-in-progress: false";
 /// The upload condition as this repository writes it.
-const GUARD: &str = "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' }}";
+pub(super) const GUARD: &str =
+    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' }}";
 
 /// Scenario: a publisher is varied one clause at a time.
 ///
 /// Invariant: each variation is reported by the clause it breaks, and the
-/// unvaried publisher has no findings. The appended disjunction is the
-/// mutation a substring check passes, but it already fails the whole-conjunct
-/// comparison, so it does not prove the refusal of `||`. The prepended one
-/// and the extra-conjunct one do: each leaves the ref check whole as a
-/// conjunct of the split, and the second hides the disjunction inside a
-/// narrowing conjunct the rule otherwise permits, so only the explicit
-/// refusal catches them. `&&` binds tighter, so both upload a dispatch from
-/// any branch.
+/// unvaried publisher has no findings. The upload guard must be exactly the
+/// token and ref conjuncts, so every disjunction case fails the set
+/// comparison whether or not `||` is refused: the refusal is defence in
+/// depth here, proved on the splitter's own cases. An extra conjunct fails
+/// too, including the ones that silently stop the upload (`&& false`, a
+/// second ref) and a negated group that carries the ref conjunct while
+/// uploading everywhere but `main`.
 ///
 /// The binding cases delete or move the token's `env` binding. The guard
 /// `env.CS_ACCESS_TOKEN != ''` reads a missing binding as empty and skips the
@@ -108,7 +108,27 @@ const GUARD: &str = "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/
     NEVER_CANCEL,
     "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' && github.actor != 'x' }}",
     "",
-    None
+    Some("not guarded")
+)]
+#[case::never_true(
+    NEVER_CANCEL,
+    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' && false }}",
+    "",
+    Some("not guarded")
+)]
+#[case::second_ref(
+    NEVER_CANCEL,
+    "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/main' && github.ref == \
+     'refs/heads/develop' }}",
+    "",
+    Some("not guarded")
+)]
+#[case::negated_group(
+    NEVER_CANCEL,
+    "${{ env.CS_ACCESS_TOKEN != '' && !(github.actor == 'x' && github.ref == 'refs/heads/main' && \
+     true) }}",
+    "",
+    Some("not guarded")
 )]
 #[case::no_ref_guard(
     NEVER_CANCEL,
@@ -117,13 +137,15 @@ const GUARD: &str = "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/
     Some("not guarded")
 )]
 #[case::cancels(
-    "concurrency:\n  group: pub-${{ github.event_name }}\n  cancel-in-progress: true",
+    "concurrency:\n  group: pub-${{ github.ref }}-${{ github.event_name }}\n  cancel-in-progress: \
+     true",
     GUARD,
     "",
     Some("cancel")
 )]
 #[case::cancels_by_expression(
-    "concurrency:\n  group: pub-${{ github.event_name }}\n  cancel-in-progress: ${{ true }}",
+    "concurrency:\n  group: pub-${{ github.ref }}-${{ github.event_name }}\n  cancel-in-progress: \
+     ${{ true }}",
     GUARD,
     "",
     Some("cancel")
@@ -131,6 +153,31 @@ const GUARD: &str = "${{ env.CS_ACCESS_TOKEN != '' && github.ref == 'refs/heads/
 #[case::no_group("", GUARD, "", Some("no concurrency group"))]
 #[case::dispatches_share_the_group(
     "concurrency:\n  group: pub\n  cancel-in-progress: false",
+    GUARD,
+    "",
+    Some("a dispatch can replace a pending push")
+)]
+#[case::ref_only_group(
+    "concurrency:\n  group: pub-${{ github.ref }}\n  cancel-in-progress: false",
+    GUARD,
+    "",
+    Some("a dispatch can replace a pending push")
+)]
+#[case::event_only_group(
+    "concurrency:\n  group: pub-${{ github.event_name }}\n  cancel-in-progress: false",
+    GUARD,
+    "",
+    Some("a dispatch can replace a pending push")
+)]
+#[case::literal_ref(
+    "concurrency:\n  group: pub-github.ref-${{ github.event_name }}\n  cancel-in-progress: false",
+    GUARD,
+    "",
+    Some("a dispatch can replace a pending push")
+)]
+#[case::literal_keys(
+    "concurrency:\n  group: coverage-main-github.ref-github.event_name\n  cancel-in-progress: \
+     false",
     GUARD,
     "",
     Some("a dispatch can replace a pending push")
@@ -304,85 +351,5 @@ fn check_mode_is_not_an_upload() -> Result<()> {
         findings.iter().any(|f| f.contains("uploads nothing")),
         "check mode read as an upload: {findings:?}"
     );
-    Ok(())
-}
-
-/// A publisher wired as this repository wires it: the upload reads what the
-/// coverage step writes and passes the token its step was given.
-const WIRED: &str = r"
-on:
-  push:
-    branches: [main]
-jobs:
-  coverage:
-    steps:
-      - uses: leynos/shared-actions/.github/actions/generate-coverage@abc
-        with:
-          output-path: lcov.info
-          format: lcov
-      - env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@abc
-        with:
-          path: lcov.info
-          format: lcov
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
-";
-
-/// Scenario: the upload is rewired away from what was measured, or from the
-/// token.
-///
-/// Invariant: each variation is named, and the wired publisher has none.
-/// Every other publisher clause passes all five variations, because each
-/// judges one step at a time.
-#[rstest]
-#[case::wired("", "", None)]
-#[case::other_path(
-    "path: lcov.info",
-    "path: other.info",
-    Some("which no coverage step writes")
-)]
-#[case::other_format(
-    "          format: lcov\n          access",
-    "          format: cobertura\n          access",
-    Some("which no coverage step writes")
-)]
-#[case::no_token(
-    "          access-token: ${{ env.CS_ACCESS_TOKEN }}\n",
-    "",
-    Some("not the token its step binds")
-)]
-#[case::other_token(
-    "${{ env.CS_ACCESS_TOKEN }}",
-    "${{ env.OTHER }}",
-    Some("not the token its step binds")
-)]
-#[case::secret_directly(
-    "${{ env.CS_ACCESS_TOKEN }}",
-    "${{ secrets.CS_ACCESS_TOKEN }}",
-    Some("not the token its step binds")
-)]
-fn the_upload_sends_what_was_measured(
-    #[case] from: &str,
-    #[case] to: &str,
-    #[case] expected: Option<&str>,
-) -> Result<()> {
-    let source = if from.is_empty() {
-        WIRED.to_owned()
-    } else {
-        WIRED.replacen(from, to, 1)
-    };
-    ensure!(
-        source != WIRED || from.is_empty(),
-        "the case changed nothing"
-    );
-    let findings = rules::wiring_findings(&parse(&source)?);
-    match expected {
-        None => ensure!(findings.is_empty(), "unexpected findings: {findings:?}"),
-        Some(clause) => ensure!(
-            findings.len() == 1 && findings.iter().all(|f| f.contains(clause)),
-            "expected one finding naming {clause:?}, saw {findings:?}"
-        ),
-    }
     Ok(())
 }

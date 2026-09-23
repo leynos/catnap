@@ -16,6 +16,11 @@ use super::publisher_rules as rules;
 #[case::quoted_or("${{ github.ref == 'refs/heads/main' && env.X != 'a||b' }}", Some(2))]
 #[case::quoted_and("${{ github.ref == 'refs/heads/main' && env.X != 'a&&b' }}", Some(2))]
 #[case::bare_or("github.ref == 'refs/heads/main' || true", None)]
+#[case::negated_group(
+    "${{ !(env.X != '' && github.ref == 'refs/heads/main' && true) }}",
+    None
+)]
+#[case::quoted_parenthesis("${{ github.ref == 'refs/heads/main' && env.X != '(a)' }}", Some(2))]
 fn quoted_operators_are_not_operators(#[case] condition: &str, #[case] expected: Option<usize>) {
     assert_eq!(
         rules::conjuncts(condition).map(|parts| parts.len()),

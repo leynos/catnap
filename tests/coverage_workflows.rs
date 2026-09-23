@@ -32,6 +32,8 @@
 //! own correct workflows would pass whether or not it detects anything. The
 //! tests below then apply the same functions to the real files.
 
+use std::collections::BTreeMap;
+
 use anyhow::{Result, bail, ensure};
 use serde_norway::Value;
 
@@ -39,6 +41,8 @@ use serde_norway::Value;
 mod closure_properties;
 #[path = "coverage_workflows/condition_cases.rs"]
 mod condition_cases;
+#[path = "coverage_workflows/guard_cases.rs"]
+mod guard_cases;
 #[path = "coverage_workflows/publisher_cases.rs"]
 mod publisher_cases;
 #[path = "coverage_workflows/publisher_rules.rs"]
@@ -53,6 +57,8 @@ mod rules;
 mod text;
 #[path = "coverage_workflows/writer_cases.rs"]
 mod writer_cases;
+#[path = "coverage_workflows/writer_rules.rs"]
+mod writer_rules;
 
 /// Workflows a pull request is known to start.
 ///
@@ -157,8 +163,88 @@ fn only_the_publisher_reaches_codescene() -> Result<()> {
 /// event, so the push side is followed as a closure too.
 #[test]
 fn only_the_publisher_writes_the_baseline() -> Result<()> {
-    let breaches = publisher_rules::second_writers(&reader::workflows()?);
+    let breaches = writer_rules::second_writers(&reader::workflows()?);
     ensure!(breaches.is_empty(), "second baseline writers: {breaches:?}");
+    Ok(())
+}
+
+/// The coverage selection the publisher and every pull-request lane run,
+/// pinned here as the repository's own value.
+///
+/// "Each lane equals the publisher" passes when both change together, a new
+/// output path or format on both sides, so the shared value is pinned too.
+/// `publish-artefact` is lane-local and left out.
+const COVERAGE_SELECTION: [(&str, &str); 3] = [
+    ("format", "lcov"),
+    ("output-path", "lcov.info"),
+    ("with-ratchet", "true"),
+];
+
+/// Returns a coverage step's `with` inputs, less the lane-local ones, and its
+/// `env`, as strings.
+fn selection(step: &serde_norway::Mapping) -> (BTreeMap<String, String>, String) {
+    let inputs = reader::get(step, "with")
+        .and_then(Value::as_mapping)
+        .into_iter()
+        .flatten()
+        .filter_map(|(key, value)| {
+            let name = key.as_str()?;
+            let text = value.as_str().map_or_else(
+                || serde_norway::to_string(value).unwrap_or_default(),
+                str::to_owned,
+            );
+            (name != "publish-artefact").then(|| (name.to_owned(), text.trim().to_owned()))
+        })
+        .collect();
+    let env = reader::get(step, "env")
+        .map(|value| serde_norway::to_string(value).unwrap_or_default())
+        .unwrap_or_default();
+    (inputs, env)
+}
+
+/// Scenario: the publisher's coverage step and each pull-request lane's are
+/// compared, and the publisher's against the pinned selection.
+///
+/// Invariant: the publisher measures exactly [`COVERAGE_SELECTION`], and every
+/// lane measures what the publisher does, with the same step environment, so
+/// the baseline a pull request is compared against measured the same thing.
+#[test]
+fn the_coverage_selection_is_pinned() -> Result<()> {
+    let all = reader::workflows()?;
+    let published: Vec<_> = all
+        .values()
+        .filter(|workflow| publisher_rules::publishes_from_main(workflow))
+        .flat_map(reader::steps)
+        .filter(|step| rules::is_coverage(step))
+        .map(selection)
+        .collect();
+    let [(inputs, env)] = published.as_slice() else {
+        bail!("expected one publisher coverage step, saw {published:?}");
+    };
+    let pinned: BTreeMap<String, String> = COVERAGE_SELECTION
+        .iter()
+        .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+        .collect();
+    ensure!(
+        *inputs == pinned,
+        "the publisher measures {inputs:?}, pinned {pinned:?}"
+    );
+    for name in reader::pull_request_closure(&all) {
+        let Some(workflow) = all.get(&name) else {
+            continue;
+        };
+        for lane in reader::steps(workflow)
+            .into_iter()
+            .filter(|step| rules::is_coverage(step))
+        {
+            let (lane_inputs, lane_env) = selection(lane);
+            ensure!(
+                (&lane_inputs, &lane_env) == (inputs, env),
+                "{name} measures {lane_inputs:?} with env {lane_env:?}; the publisher {inputs:?} \
+                 with {env:?}"
+            );
+        }
+    }
     Ok(())
 }
 
