@@ -110,7 +110,7 @@ test bodies rather than shared production paths.
 - [x] 2026-06-01: Implemented the duration parser, progress cadence selection,
   locale-aware remaining-time formatter, injected monotonic clock, real clock,
   and binary wiring.
-- [x] 2026-06-01: Added initial unit tests using `rstest` and `mockall`.
+- [x] 2026-06-01: Added unit tests using `rstest`.
 - [x] 2026-06-01: Added behavioural tests using `rstest-bdd`.
 - [x] 2026-06-01: Added snapshot tests using `insta`.
 - [x] 2026-06-01: Added end-to-end tests that use the hidden logical-second
