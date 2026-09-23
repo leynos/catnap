@@ -356,7 +356,7 @@ fn the_whole_document_is_searched(#[case] source: &str, #[case] expected: &str) 
 )]
 #[case::digest(
     "      - run: gh variable set CODESCENE_CLI_SHA256 --body x\n",
-    "CODESCENE_CLI_SHA256"
+    "retired installer digest"
 )]
 #[case::cli("      - run: cs-coverage upload --format lcov\n", "runs cs-coverage")]
 #[case::uploader(

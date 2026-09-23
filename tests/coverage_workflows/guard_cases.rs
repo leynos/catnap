@@ -143,6 +143,16 @@ fn the_upload_sends_what_was_measured(
     "      - run:",
     "has no id"
 )]
+#[case::check_behind_a_shell(
+    "      - id: codescene-token\n",
+    "      - id: codescene-token\n        shell: bash -c 'exit 0; {0}'\n",
+    "declares `shell`"
+)]
+#[case::check_allowed_to_fail(
+    "      - id: codescene-token\n",
+    "      - id: codescene-token\n        continue-on-error: true\n",
+    "declares `continue-on-error`"
+)]
 #[case::check_command_changed(
     "secrets.CS_ACCESS_TOKEN != ''",
     "true",

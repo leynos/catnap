@@ -18,6 +18,7 @@ use super::{
         is_coverage,
         is_upload,
         is_upload_action,
+        names_the_retired_digest,
         normalized,
         runs_the_cli,
     },
@@ -263,7 +264,9 @@ const PUBLISHER_GROUP: &str = "${{github.workflow}}-${{github.ref}}";
 ///
 /// One group per ref, never per event: runs in it never overlap, and the
 /// survivor of any replacement is the newest trigger, whose commit is the
-/// newest `main` at trigger time, so uploads land in commit order. A group
+/// newest `main` at trigger time, so triggered runs (push and dispatch)
+/// upload in commit order. A manual re-run of an older run is an operator
+/// action that republishes that commit until the next push. A group
 /// keyed on the event as well lets an earlier dispatch finish after a newer
 /// push and upload older coverage last. The key must be the evaluated
 /// expression; a literal `github.ref` keys nothing. Every level is read,
@@ -311,6 +314,9 @@ fn reachability_findings(workflow: &Value) -> Vec<String> {
 /// Returns the reasons a main publisher fails to publish what CV-005 requires.
 pub fn publisher_findings(workflow: &Value) -> Vec<String> {
     let mut findings = reachability_findings(workflow);
+    if names_the_retired_digest(workflow) {
+        findings.push("the publisher names the retired installer digest".to_owned());
+    }
     let mut triggers = reader::trigger_names(workflow);
     triggers.sort();
     if triggers != PUBLISHER_TRIGGERS {

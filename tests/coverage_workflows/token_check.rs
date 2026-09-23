@@ -37,11 +37,18 @@ pub(super) fn check_id(workflow: &Value) -> Option<&str> {
     }
 }
 
+/// The keys the token check step may declare, besides its absent `if:`.
+///
+/// Anything else can stop it answering while it still reads as present: a
+/// `shell` of `bash -c 'exit 0; {0}'` runs nothing, and `continue-on-error`
+/// lets a failed write pass, so the upload skips forever either way.
+const CHECK_STEP_KEYS: [&str; 3] = ["id", "name", "run"];
+
 /// Returns the reasons the token check step is missing or cannot be trusted.
 ///
 /// The check must exist exactly once (deleted, the upload skips forever),
-/// carry an id the upload can read, and run with no `if:`, since a check that
-/// cannot run answers nothing.
+/// carry an id the upload can read, run with no `if:`, and declare nothing
+/// beyond [`CHECK_STEP_KEYS`], since a check that cannot run answers nothing.
 pub(super) fn check_findings(workflow: &Value) -> Vec<String> {
     let checks = check_steps(workflow);
     let [check] = checks.as_slice() else {
@@ -50,6 +57,11 @@ pub(super) fn check_findings(workflow: &Value) -> Vec<String> {
             checks.len()
         )];
     };
+    let extra_keys = check
+        .keys()
+        .map(|key| key.as_str().unwrap_or("a non-string key"))
+        .filter(|key| *key != "if" && !CHECK_STEP_KEYS.contains(key))
+        .map(|key| format!("the token check step declares `{key}`"));
     [
         (
             get(check, "id").and_then(Value::as_str).is_none(),
@@ -60,5 +72,6 @@ pub(super) fn check_findings(workflow: &Value) -> Vec<String> {
     .into_iter()
     .filter(|(is_broken, _)| *is_broken)
     .map(|(_, reason)| format!("the token check step {reason}"))
+    .chain(extra_keys)
     .collect()
 }

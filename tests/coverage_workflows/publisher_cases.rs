@@ -252,7 +252,7 @@ const REUSABLE: &str = "  forward:\n    uses: ./.github/workflows/elsewhere.yml\
 )]
 #[case::bound_in_the_check(
     |source: String| source.replace(CHECK_STEP, &format!("{CHECK_STEP}{STEP_BINDING}")),
-    &["in its env"][..],
+    &["in its env", "declares `env`"][..],
 )]
 #[case::token_in_the_upload_env(
     |source: String| source.replace(
@@ -281,6 +281,39 @@ fn the_token_sits_on_the_upload_alone(
                 .iter()
                 .all(|clause| findings.iter().any(|f| f.contains(clause))),
         "expected findings naming {expected:?}, saw {findings:?}"
+    );
+    Ok(())
+}
+
+/// Scenario: the retired installer digest returns to the upload step, as
+/// the input or as the variable that fed it.
+///
+/// Invariant: the publisher names it. The uploader rejects a non-empty
+/// `installer-checksum`, and the variable has no writer left, so either is a
+/// relic the stray-workflow clause alone would never read on the publisher.
+#[rstest]
+#[case::input(
+    "          access-token:",
+    "          installer-checksum: '0'\n          access-token:"
+)]
+#[case::variable(
+    "          access-token:",
+    "          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}\n          access-token:"
+)]
+fn the_retired_digest_is_refused_in_the_publisher(
+    #[case] from: &str,
+    #[case] to: &str,
+) -> Result<()> {
+    let complying = publisher(NEVER_CANCEL, GUARD, "");
+    let source = complying.replacen(from, to, 1);
+    ensure!(source != complying, "the case changed nothing");
+    let findings = rules::publisher_findings(&parse(&source)?);
+    ensure!(
+        findings.len() == 1
+            && findings
+                .iter()
+                .all(|f| f.contains("retired installer digest")),
+        "expected one finding naming the digest, saw {findings:?}"
     );
     Ok(())
 }

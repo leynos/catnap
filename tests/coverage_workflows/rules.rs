@@ -26,6 +26,19 @@ pub(super) const COVERAGE_CLI: &str = "cs-coverage";
 const CODESCENE_HOST: &str = "codescene.io";
 /// The variable the retired installer-digest refresher wrote, case-folded.
 const CLI_DIGEST_VARIABLE: &str = "codescene_cli_sha256";
+/// The uploader's retired digest input, case-folded.
+const INSTALLER_CHECKSUM: &str = "installer-checksum";
+
+/// Returns whether a workflow names the retired installer digest anywhere.
+///
+/// The uploader now verifies its archive against a committed manifest and
+/// rejects a non-empty `installer-checksum`, so either name is a relic that
+/// would fail the step or feed nothing; no workflow may carry one, the
+/// publisher included.
+pub(super) fn names_the_retired_digest(workflow: &Value) -> bool {
+    let text = folded(workflow);
+    text.contains(CLI_DIGEST_VARIABLE) || text.contains(INSTALLER_CHECKSUM)
+}
 
 /// Collapses every run of whitespace to one space.
 pub(super) fn normalized(text: &str) -> String {
@@ -163,8 +176,8 @@ pub fn stray_findings(workflow: &Value) -> Vec<String> {
             format!("contacts {CODESCENE_HOST}"),
         ),
         (
-            text.contains(CLI_DIGEST_VARIABLE),
-            "reads or writes CODESCENE_CLI_SHA256".to_owned(),
+            names_the_retired_digest(workflow),
+            "names the retired installer digest".to_owned(),
         ),
         (
             steps.iter().any(|step| is_upload_action(step)),

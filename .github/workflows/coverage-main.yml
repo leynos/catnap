@@ -22,9 +22,11 @@ name: Coverage (main)
 # A run in progress is never cancelled. A cancelled publisher abandons both its
 # upload and its ratchet baseline write. The group is keyed on the ref alone:
 # runs never overlap, and a newer trigger replaces any run still pending, so
-# the survivor is the newest main and uploads land in commit order. Keying on
-# the event too would let an earlier dispatch finish after a newer push and
-# upload older coverage last. `tests/coverage_workflows.rs` pins this group.
+# for triggered runs (push and dispatch) the survivor is the newest main and
+# uploads land in commit order. A manual re-run of an older main run is an
+# operator action: it republishes that commit's coverage and baseline until
+# the next push. Keying on the event too would let an earlier dispatch finish
+# after a newer push and upload older coverage last. `tests/coverage_workflows.rs` pins this group.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false

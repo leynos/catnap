@@ -36,10 +36,13 @@ Coverage has two workflows, and the split is a contract (concordat's CV-005,
   (a dispatch can name any branch, and any further conjunct could only narrow,
   defeat, or invert the upload), and the workflow's concurrency group, exactly
   `${{ github.workflow }}-${{ github.ref }}` at every level, never cancels a
-  run in progress and never overlaps two runs, so uploads land in commit order
-  and a burst of merges cannot abandon a baseline write. The workflow answers
-  exactly a push to `main` and `workflow_dispatch`, and the coverage selection
-  both lanes run is pinned in the contract.
+  run in progress and never overlaps two runs, so triggered runs (push and
+  dispatch) upload in commit order and a burst of merges cannot abandon a
+  baseline write. A manual re-run of an older `main` run is an operator action
+  that republishes that commit's coverage and baseline until the next push
+  supersedes it. The workflow answers exactly a push to `main` and
+  `workflow_dispatch`, and the coverage selection both lanes run is pinned in
+  the contract.
 
 One known exception: a Dependabot pull request merged by the automerge workflow
 with `GITHUB_TOKEN` fires no push event, so that merge is neither measured nor
