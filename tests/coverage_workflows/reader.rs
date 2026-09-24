@@ -159,7 +159,8 @@ pub fn starts_on_pull_request(workflow: &Value) -> bool {
 /// with the repository's secrets, so a push trigger is part of the
 /// pull-request surface unless it is limited to exactly `branches: [main]` or
 /// to tags alone. Every other shape, the bare scalar, a glob, a
-/// `branches-ignore` list, is read as reaching a pull request's branch.
+/// `branches-ignore` list (beside `tags` too, since it still admits every
+/// other branch), is read as reaching a pull request's branch.
 fn pushes_beyond_main(workflow: &Value) -> bool {
     if !trigger_names(workflow).iter().any(|name| name == "push") {
         return false;
@@ -168,7 +169,7 @@ fn pushes_beyond_main(workflow: &Value) -> bool {
         return true;
     };
     get(push, "branches").map_or_else(
-        || get(push, "tags").is_none(),
+        || get(push, "tags").is_none() || get(push, "branches-ignore").is_some(),
         |branches| {
             branches.as_sequence().is_none_or(|listed| {
                 listed.len() != 1 || listed.first().and_then(Value::as_str) != Some("main")

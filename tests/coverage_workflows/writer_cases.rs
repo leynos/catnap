@@ -84,6 +84,9 @@ fn a_callee_of_a_push_lane_is_a_second_writer() -> Result<()> {
 #[case::push_every_branch("on: push\njobs: {}\n")]
 #[case::push_glob("on:\n  push:\n    branches: ['**']\njobs: {}\n")]
 #[case::push_ignoring("on:\n  push:\n    branches-ignore: [gh-pages]\njobs: {}\n")]
+#[case::push_tags_and_ignoring(
+    "on:\n  push:\n    tags: ['v*']\n    branches-ignore: [gh-pages]\njobs: {}\n"
+)]
 #[case::push_main_and_more("on:\n  push:\n    branches: [main, 'feature/*']\njobs: {}\n")]
 fn every_pull_request_event_seeds_the_closure(#[case] source: &str) -> Result<()> {
     ensure!(

@@ -8,9 +8,9 @@
 //! 2. every `generate-coverage` step such a workflow runs sets `with-ratchet: true`, with baseline
 //!    paths matching the main publisher's;
 //! 3. exactly one workflow triggered by a push restricted to `main` generates ratcheted coverage
-//!    and uploads it through the shared action, from the one step binding the token, behind a
-//!    `github.ref == 'refs/heads/main'` conjunct, in a concurrency group that never cancels a run
-//!    in progress.
+//!    and uploads it through the shared action, passing the secret as its `access-token` input,
+//!    behind the token check's answer and a `github.ref == 'refs/heads/main'` conjunct, in a
+//!    concurrency group that never cancels a run in progress.
 //!
 //! Why each clause is worth a test rather than a convention: a pull request
 //! from a fork cannot read `secrets.CS_ACCESS_TOKEN`, so an upload step on the
@@ -34,7 +34,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use serde_norway::Value;
 
 #[path = "coverage_workflows/closure_properties.rs"]
@@ -102,8 +102,9 @@ fn no_workflow_a_pull_request_reaches_touches_codescene() -> Result<()> {
 ///
 /// Invariant: exactly one workflow is triggered by a push restricted to
 /// `main`, and it publishes as clause 3 requires, uploading the file and
-/// format its coverage step writes with the token its step binds. Without
-/// this, the first clause is satisfied by deleting the upload altogether.
+/// format its coverage step writes, passing the secret as its
+/// `access-token`. Without this, the first clause is satisfied by deleting
+/// the upload altogether.
 #[test]
 fn exactly_one_main_publisher_uploads_ratcheted_coverage() -> Result<()> {
     let all = reader::workflows()?;
@@ -182,26 +183,39 @@ const COVERAGE_SELECTION: [(&str, &str); 3] = [
     ("with-ratchet", "true"),
 ];
 
+/// Renders a `with` input or `env` value as text, a string as written.
+///
+/// # Errors
+///
+/// Fails when the value cannot be serialized, rather than comparing two
+/// lanes on an empty string that would make any two failures agree.
+fn rendered(value: &Value) -> Result<String> {
+    value.as_str().map_or_else(
+        || serde_norway::to_string(value).context("serializing a coverage step value"),
+        |text| Ok(text.to_owned()),
+    )
+}
+
 /// Returns a coverage step's `with` inputs, less the lane-local ones, and its
 /// `env`, as strings.
-fn selection(step: &serde_norway::Mapping) -> (BTreeMap<String, String>, String) {
+///
+/// # Errors
+///
+/// Fails when an input or the `env` cannot be rendered.
+fn selection(step: &serde_norway::Mapping) -> Result<(BTreeMap<String, String>, String)> {
     let inputs = reader::get(step, "with")
         .and_then(Value::as_mapping)
         .into_iter()
         .flatten()
-        .filter_map(|(key, value)| {
-            let name = key.as_str()?;
-            let text = value.as_str().map_or_else(
-                || serde_norway::to_string(value).unwrap_or_default(),
-                str::to_owned,
-            );
-            (name != "publish-artefact").then(|| (name.to_owned(), text.trim().to_owned()))
-        })
-        .collect();
+        .filter_map(|(key, value)| Some((key.as_str()?, value)))
+        .filter(|(name, _)| *name != "publish-artefact")
+        .map(|(name, value)| Ok((name.to_owned(), rendered(value)?.trim().to_owned())))
+        .collect::<Result<_>>()?;
     let env = reader::get(step, "env")
-        .map(|value| serde_norway::to_string(value).unwrap_or_default())
+        .map(rendered)
+        .transpose()?
         .unwrap_or_default();
-    (inputs, env)
+    Ok((inputs, env))
 }
 
 /// Scenario: the publisher's coverage step and each pull-request lane's are
@@ -219,7 +233,7 @@ fn the_coverage_selection_is_pinned() -> Result<()> {
         .flat_map(reader::steps)
         .filter(|step| rules::is_coverage(step))
         .map(selection)
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
     let [(inputs, env)] = published.as_slice() else {
         bail!("expected one publisher coverage step, saw {published:?}");
     };
@@ -239,7 +253,7 @@ fn the_coverage_selection_is_pinned() -> Result<()> {
             .into_iter()
             .filter(|step| rules::is_coverage(step))
         {
-            let (lane_inputs, lane_env) = selection(lane);
+            let (lane_inputs, lane_env) = selection(lane)?;
             ensure!(
                 (&lane_inputs, &lane_env) == (inputs, env),
                 "{name} measures {lane_inputs:?} with env {lane_env:?}; the publisher {inputs:?} \

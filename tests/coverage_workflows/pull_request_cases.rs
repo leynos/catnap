@@ -350,6 +350,10 @@ fn the_whole_document_is_searched(#[case] source: &str, #[case] expected: &str) 
 /// publisher clauses read a tag- or dispatch-triggered workflow.
 #[rstest]
 #[case::token("      - run: echo ${{ secrets.CS_ACCESS_TOKEN }}\n", "receives")]
+#[case::computed(
+    "      - run: echo ${{ secrets[format('CS_{0}', 'ACCESS_TOKEN')] }}\n",
+    "computed name"
+)]
 #[case::host(
     "      - run: curl -fsSL https://downloads.codescene.io/x.sh\n",
     "contacts"

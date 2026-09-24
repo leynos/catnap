@@ -163,6 +163,8 @@ fn pull_request_step_findings(step: &Mapping) -> Vec<String> {
 /// publisher clauses only the publisher, so a dispatch-only or tag-triggered
 /// workflow would escape both. Only the publisher may hold the token, name the
 /// host, run the CLI or the uploader, or touch the retired installer digest.
+/// A computed secret name is refused here too, since
+/// `secrets[format('CS_{0}', 'ACCESS_TOKEN')]` names none of them.
 pub fn stray_findings(workflow: &Value) -> Vec<String> {
     let text = folded(workflow);
     let steps = reader::steps(workflow);
@@ -170,6 +172,10 @@ pub fn stray_findings(workflow: &Value) -> Vec<String> {
         (
             text.contains(ACCESS_TOKEN_FOLDED),
             format!("receives {ACCESS_TOKEN}"),
+        ),
+        (
+            computes_a_secret(&text),
+            "reaches a secret by a computed name".to_owned(),
         ),
         (
             text.contains(CODESCENE_HOST),

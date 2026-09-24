@@ -31,10 +31,13 @@ Coverage has two workflows, and the split is a contract (concordat's CV-005,
   `${{ secrets.CS_ACCESS_TOKEN != '' }}` into its output, and no step holds the
   token in its `env`, because the composite upload action would hand a step
   `env` to its nested `upload-artifact` and cache steps; the upload step passes
-  the secret as its `access-token` input. The upload's `if:` is exactly
-  `steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main'`
-  (a dispatch can name any branch, and any further conjunct could only narrow,
-  defeat, or invert the upload), and the workflow's concurrency group, exactly
+  the secret as its `access-token` input. The check runs earlier in the
+  upload's own job, under no default shell, since a step's output is readable
+  only there. The upload's `if:` is exactly
+  `steps.codescene-token.outputs.available == 'true'` joined by `&&` to
+  `github.ref == 'refs/heads/main'` (a dispatch can name any branch, and any
+  further conjunct could only narrow, defeat, or invert the upload), and the
+  workflow's concurrency group, exactly
   `${{ github.workflow }}-${{ github.ref }}` at every level, never cancels a
   run in progress and never overlaps two runs, so triggered runs (push and
   dispatch) upload in commit order and a burst of merges cannot abandon a

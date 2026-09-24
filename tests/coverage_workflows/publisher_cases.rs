@@ -79,9 +79,8 @@ pub(super) const GUARD: &str =
 /// second ref) and a negated group that carries the ref conjunct while
 /// uploading everywhere but `main`.
 ///
-/// The binding cases delete or move the token's `env` binding. The guard
-/// `steps.codescene-token.outputs.available == 'true'` reads a missing binding as empty and skips
-/// the upload forever, so the binding is asserted rather than inferred.
+/// The token check the guard reads is varied in `guard_cases`, in
+/// `the_token_check_is_exact` and `the_token_check_is_where_the_upload_reads_it`.
 #[rstest]
 #[case::complies(NEVER_CANCEL, GUARD, "", None)]
 #[case::disjunction_appended(
@@ -226,8 +225,8 @@ const REUSABLE: &str = "  forward:\n    uses: ./.github/workflows/elsewhere.yml\
 /// satisfies "some step holds it" while the check reports it unset and
 /// publishing silently stops; a workflow- or job-level `env` hands it to every
 /// step; and the upload step's own `env` hands it to the composite action's
-/// nested `upload-artifact` and cache steps, so only the check step's `env` and
-/// the upload's `access-token` input may carry it.
+/// nested `upload-artifact` and cache steps, so only the check step's `run`
+/// expression and the upload's `access-token` input may name it.
 #[rstest]
 #[case::moved_to_coverage(
     |source: String| source.replace("        with:\n          with-ratchet", &format!("{STEP_BINDING}        with:\n          with-ratchet")),

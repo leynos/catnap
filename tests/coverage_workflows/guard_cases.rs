@@ -189,3 +189,55 @@ fn the_token_check_is_exact(
     );
     Ok(())
 }
+
+/// The token check step as the publisher fixture writes it.
+const TOKEN_CHECK: &str = "      - id: codescene-token\n        run: echo \"available=${{ \
+                           secrets.CS_ACCESS_TOKEN != '' }}\" >> \"$GITHUB_OUTPUT\"\n";
+/// A shell that runs nothing, so a step under it never writes its output.
+const SILENT_SHELL: &str = "shell: bash -c 'exit 0; {0}'";
+
+/// Scenario: the token check is moved after the upload or into another job,
+/// or put under a default shell, on the workflow, its job, or another job.
+///
+/// Invariant: each placement the upload cannot read is named, and nothing
+/// else. A `steps.<id>` output resolves only later in the same job, and a
+/// default shell wraps the check as a step `shell` would; a default on a job
+/// the check is not in reaches nothing, so it is not refused.
+#[rstest]
+#[case::after_the_upload(
+    |source: String| format!("{}{TOKEN_CHECK}", source.replacen(TOKEN_CHECK, "", 1)),
+    Some("before every upload")
+)]
+#[case::in_another_job(
+    |source: String| format!("{}  token:\n    steps:\n{TOKEN_CHECK}", source.replacen(TOKEN_CHECK, "", 1)),
+    Some("before every upload")
+)]
+#[case::workflow_default_shell(
+    |source: String| source.replacen("jobs:\n", &format!("defaults:\n  run:\n    {SILENT_SHELL}\njobs:\n"), 1),
+    Some("defaults.run.shell")
+)]
+#[case::job_default_shell(
+    |source: String| source.replacen("  coverage:\n", &format!("  coverage:\n    defaults:\n      run:\n        {SILENT_SHELL}\n"), 1),
+    Some("defaults.run.shell")
+)]
+#[case::other_job_default_shell(
+    |source: String| format!("{source}  other:\n    defaults:\n      run:\n        {SILENT_SHELL}\n    steps:\n      - run: 'true'\n"),
+    None
+)]
+fn the_token_check_is_where_the_upload_reads_it(
+    #[case] edit: fn(String) -> String,
+    #[case] expected: Option<&str>,
+) -> Result<()> {
+    let complying = publisher(NEVER_CANCEL, GUARD, "");
+    let source = edit(complying.clone());
+    ensure!(source != complying, "the case changed nothing");
+    let findings = rules::publisher_findings(&parse(&source)?);
+    match expected {
+        None => ensure!(findings.is_empty(), "unexpected findings: {findings:?}"),
+        Some(clause) => ensure!(
+            findings.len() == 1 && findings.iter().all(|f| f.contains(clause)),
+            "expected one finding naming {clause:?}, saw {findings:?}"
+        ),
+    }
+    Ok(())
+}
