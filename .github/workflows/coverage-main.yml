@@ -84,7 +84,7 @@ jobs:
         # uploading a branch CodeScene does not analyse: the push trigger is
         # restricted to `main`, but a dispatch may name any branch.
         if: ${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@dc935ad8202c30495deaaaca7be4f876659e37ad
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@22c1a57865e42ba7e2ca4f88ae49fa6f81f58013
         with:
           path: lcov.info
           format: lcov
