@@ -23,7 +23,7 @@ fn compiled_binary_exposes_gnu_like_sleep_behaviour() -> Result<(), Box<dyn std:
         .assert()
         .success()
         .stdout(predicate::str::is_empty())
-        .stderr(predicate::str::contains("1 second remaining\n"));
+        .stderr(predicate::str::diff("1 second remaining\n"));
 
     Command::new(&binary)
         .arg("1w")
