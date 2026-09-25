@@ -15,8 +15,9 @@ use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
 const CI_WORKFLOW: &str = ".github/workflows/ci.yml";
-const WORKFLOW_FILES: [&str; 4] = [
+const WORKFLOW_FILES: [&str; 5] = [
     ".github/workflows/ci.yml",
+    ".github/workflows/coverage-main.yml",
     ".github/workflows/delayed-pr-comment.yml",
     ".github/workflows/dependabot-automerge.yml",
     ".github/workflows/release.yml",

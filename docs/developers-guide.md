@@ -12,6 +12,69 @@ doctests, a nextest-backed `make test` run skips them; run `cargo test --doc`
 separately as a required additional step when nextest is present.
 `make coverage` uses `cargo llvm-cov` with `lld`.
 
+### Coverage publication
+
+Coverage has two workflows, and the split is a contract (concordat's CV-005,
+`main-owned-codescene-coverage`), not a convention.
+
+- `ci.yml` measures lld-linked lcov coverage on every pull request with the
+  shared `generate-coverage` action, `with-ratchet: 'true'` and
+  `publish-artefact: 'false'`. A drop against the ratchet baseline fails the
+  pull request. The lane holds no CodeScene credential, has no upload step, and
+  never contacts CodeScene.
+- `coverage-main.yml` runs on every push to `main` and on dispatch. It measures
+  the same source with the same action, format, output path, and default
+  baseline files. A push to `main` writes the ratchet baseline every pull
+  request compares against; a dispatch reads it without advancing it. The lane
+  then uploads the report to CodeScene in explicit upload mode. A check step
+  reports whether the secret is set by evaluating
+  `${{ secrets.CS_ACCESS_TOKEN != '' }}` into its output, and no step holds the
+  token in its `env`, because the composite upload action would hand a step
+  `env` to its nested `upload-artifact` and cache steps; the upload step passes
+  the secret as its `access-token` input. The check runs earlier in the
+  upload's own job, under no default shell, since a step's output is readable
+  only there. The upload's `if:` is exactly
+  `steps.codescene-token.outputs.available == 'true'` joined by `&&` to
+  `github.ref == 'refs/heads/main'` (a dispatch can name any branch, and any
+  further conjunct could only narrow, defeat, or invert the upload), and the
+  workflow's concurrency group, exactly
+  `${{ github.workflow }}-${{ github.ref }}` at every level, never cancels a
+  run in progress and never overlaps two runs, so triggered runs (push and
+  dispatch) upload in commit order and a burst of merges cannot abandon a
+  baseline write. A manual re-run of an older `main` run is an operator action
+  that republishes that commit's coverage and baseline until the next push
+  supersedes it. The workflow answers exactly a push to `main` and
+  `workflow_dispatch`, and the coverage selection both lanes run is pinned in
+  the contract.
+
+One known exception: a Dependabot pull request merged by the automerge workflow
+with `GITHUB_TOKEN` fires no push event, so that merge is neither measured nor
+uploaded until the next push to `main`; shared-actions #518 tracks the fix.
+There is deliberately no `schedule` trigger to paper over it. Likewise, a
+dispatch that replaces a pending push uploads the same or a newer commit, but
+the ratchet baseline is saved only on a push, so it stays one commit behind
+until the next push; shared-actions #518 covers that too.
+
+The reasons are both quiet failures: a pull request from a fork cannot read the
+secret, so an upload there is silently skipped, and CodeScene accepts an upload
+only for a branch it analyses, which a pull request head is not.
+
+`tests/coverage_workflows.rs` enforces the split over every workflow a pull
+request can reach, following local reusable-workflow calls transitively, and
+over every other workflow too: only the publisher may hold the token, name the
+CodeScene host, run the CLI or the uploader, or touch the retired
+`CODESCENE_CLI_SHA256` variable. It drives each rule against breaching fixtures
+under `tests/coverage_workflows/`. The pull-request surface is seeded by every
+event that runs a workflow for a pull request (`pull_request`,
+`pull_request_target`, `merge_group`, the two review events, `issue_comment`,
+`workflow_run`, and any push not limited to exactly `branches: [main]` or to
+tags), and the push side is followed the same way: a workflow a push starts, or
+one it calls, may run a ratcheted coverage step only behind
+`if: github.event_name == 'pull_request'`, so the publisher stays the
+baseline's only writer. When adding a workflow, keep CodeScene, `cs-coverage`,
+and the token out of it unless it is the publisher; the contract names the
+clause a change breaks.
+
 ### GitHub Actions workflow linting
 
 `make lint` runs `yamllint .github/workflows` and `actionlint`, so every
