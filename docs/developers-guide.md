@@ -8,10 +8,12 @@ Use `netsuke` as the public entrypoint for formatting, linting, and tests. The
 default `all` action runs the comprehensive checks sequentially.
 `netsuke build lint` runs rustdoc, Clippy, and Whitaker. `netsuke build test`
 prefers `cargo nextest run` and falls back to `cargo test` when cargo-nextest
-is not available. Because `cargo nextest run` does not execute doctests, a
-nextest-backed test action skips them; run `cargo test --doc` separately as a
-required additional step when nextest is present. `netsuke build coverage` uses
-`cargo llvm-cov` with `lld`.
+is not available on `PATH`. Its executable lookup excludes the workspace, so a
+checkout-local binary cannot change which test runner Netsuke selects. Because
+`cargo nextest run` does not execute doctests, a nextest-backed test action
+skips them; run `cargo test --doc` separately as a required additional step
+when nextest is present. `netsuke build coverage` uses `cargo llvm-cov` with
+`lld`.
 
 ## Tooling
 
@@ -27,8 +29,14 @@ requires its pinned nightly toolchain when installed from crates.io:
 ```sh
 rustup toolchain install nightly-2026-08-23
 cargo +nightly-2026-08-23 install --locked netsuke-build \
-  --version =0.1.0-beta3
+  --version =0.1.0-beta4
 ```
+
+Consult the tagged Netsuke
+[users' guide](https://github.com/leynos/netsuke/blob/v0.1.0-beta4/docs/users-guide.md)
+and
+[migration guide](https://github.com/leynos/netsuke/blob/v0.1.0-beta4/docs/v0-1-0-migration-guide.md)
+for the beta4 manifest and executable-discovery contracts.
 
 The CI workflow caches the installed `~/.cargo/bin/netsuke` binary by Netsuke
 version, host platform, architecture, and installation toolchain.

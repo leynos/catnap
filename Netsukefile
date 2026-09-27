@@ -18,7 +18,7 @@ actions:
     description: Run tests with cargo-nextest or Cargo
     command: >-
       RUSTFLAGS='-D warnings'
-      cargo {% if command_available("cargo-nextest") %}nextest run{% else %}test{% endif %}
+      cargo {% if command_available("cargo-nextest", cwd_mode="never") %}nextest run{% else %}test{% endif %}
       --all-targets --all-features
 
   - name: build
