@@ -14,6 +14,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       BUILD_PROFILE: debug
+      NETSUKE_TOOLCHAIN: nightly-2026-08-23
+      NETSUKE_VERSION: 0.1.0-beta4
       UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
       UV_TOOL_DIR: ${{ github.workspace }}/.uv-tools
       UV_TOOL_BIN_DIR: ${{ github.workspace }}/.uv-bin
@@ -33,17 +35,37 @@ jobs:
       - name: Install rust-analyzer
         # The shared setup action installs build components but not this one.
         run: rustup component add rust-analyzer
+      - name: Cache Netsuke
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cargo/bin/netsuke
+          key: netsuke-${{ runner.os }}-${{ runner.arch }}-${{ env.NETSUKE_VERSION }}-${{ env.NETSUKE_TOOLCHAIN }}
+      - name: Install Netsuke from crates.io
+        run: |
+          set -euo pipefail
+          if netsuke --version 2>/dev/null | grep --fixed-strings --quiet "${NETSUKE_VERSION}"; then
+            exit 0
+          fi
+          rustup toolchain install "${NETSUKE_TOOLCHAIN}" --profile minimal
+          cargo "+${NETSUKE_TOOLCHAIN}" install --locked \
+            netsuke-build --version "=${NETSUKE_VERSION}"
+      - name: Install Ninja
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update \
+            && sudo apt-get install --yes --no-install-recommends ninja-build
       - name: Install Cranelift backend
-        run: make install-cranelift
+        run: netsuke build install-cranelift
       - name: Install mdtablefix
-        # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
+        # `netsuke build check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.
         uses: leynos/shared-actions/.github/actions/install-mdtablefix@0606ca899ce2995a0c4bc78e660e80832e6e8855
         with:
           version: "0.6.1"
 
       - name: Format
-        run: make check-fmt
+        run: netsuke build check-fmt
       - name: Markdown lint
         uses: DavidAnson/markdownlint-cli2-action@4d036b826b8b2df8671d140de0d86cef0f5c2202
         with:
@@ -53,9 +75,9 @@ jobs:
         with:
           python-version: '3.14'
       - name: Check the CV-005 contracts
-        run: make test-workflow-contracts
+        run: netsuke build test-workflow-contracts
       - name: Spelling
-        run: make spelling
+        run: netsuke build spelling
       - name: Install the stable toolchain
         # tests/stable_cargo_config.rs runs stable Cargo, the toolchain the
         # release builds with, against .cargo/config.toml.
@@ -65,13 +87,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: cargo binstall --no-confirm cargo-nextest
       - name: Test public error UI contracts
-        run: make test-ui
+        run: netsuke build test-ui
       - name: Install Whitaker
         uses: leynos/shared-actions/.github/actions/install-whitaker@ff1dd759dfffc0db3459e30e833f52437ee62b57
       - name: Install the YAML lint tools
         uses: leynos/shared-actions/.github/actions/install-yaml-lint@26c918632c5413039a84358fafe012a4399a9ec7
       - name: Lint
-        run: /usr/bin/make lint
+        run: netsuke build lint
       - name: Log coverage linker configuration
         run: |
           echo "Coverage linker: clang"

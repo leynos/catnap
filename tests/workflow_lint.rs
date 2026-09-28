@@ -138,7 +138,7 @@ fn workflow_lint_policy_supports_github_actions_and_pinned_ci_tools(
     let lint_step = workflow_step(&ci_workflow, "Lint").expect("find lint step");
     assert_eq!(
         workflow_step_field(lint_step, "run").expect("find lint command"),
-        "/usr/bin/make lint"
+        "netsuke build lint"
     );
     assert!(
         ci_workflow.find("Install the YAML lint tools") < ci_workflow.find("      - name: Lint\n"),

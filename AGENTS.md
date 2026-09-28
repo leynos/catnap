@@ -133,22 +133,22 @@ This repository is written in Rust and uses Cargo for building and dependency
 management. Contributors should follow these best practices when working on the
 project:
 
-- Run `make check-fmt`, `make lint`, and `make test` before committing. These
-  targets wrap the following commands, so contributors understand the exact
-  behaviour and policy enforced:
-  - `make check-fmt` executes:
+- Run `netsuke build check-fmt`, `netsuke build lint`, and
+  `netsuke build test` before committing. These actions wrap the following
+  commands, so contributors understand the exact behaviour and policy enforced:
+  - `netsuke build check-fmt` executes:
 
     ```sh
-    cargo fmt --workspace -- --check
+    cargo fmt --all -- --check
     ```
 
     validating formatting across the entire workspace without modifying files.
-  - `make lint` executes:
+  - `netsuke build lint` executes:
 
     ```sh
     RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
     cargo clippy --all-targets --all-features -- -D warnings
-    whitaker --all -- --all-targets --all-features
+    RUSTFLAGS="-D warnings" whitaker --all -- --all-targets --all-features
     git ls-files -z '*.yml' '*.yaml' | xargs -0 -r yamllint --strict --
     actionlint
     ```
@@ -156,19 +156,21 @@ project:
     This validates Rust documentation, linting, every Git-tracked YAML file,
     and all GitHub Actions workflows. `.yamllint-estate.yml` is the estate's
     shared base, copied verbatim and never edited here; `.yamllint.yml`
-    extends it and may only add an `ignore`. Fix findings rather than
+    extends it and may only add an `ignore`. Keep the configuration compatible
+    with GitHub's unquoted `on` trigger key, and fix findings rather than
     disabling either linter. CI installs `yamllint`, `actionlint` and
     `shellcheck` through the pinned shared `install-yaml-lint` action before
-    invoking `/usr/bin/make lint`, and never installs them by hand.
-  - `make test` executes:
+    invoking `netsuke build lint`; CI must not install them by hand.
+  - `netsuke build test` executes `cargo nextest run` when cargo-nextest is
+    available:
 
     ```sh
-    cargo test --workspace
+    RUSTFLAGS="-D warnings" cargo nextest run --all-targets --all-features
     ```
 
-    running the full workspace test suite. Use `make fmt`
-    (`cargo fmt --workspace`) to apply formatting fixes reported by the
-    formatter check.
+    Otherwise, it falls back to `cargo test --all-targets --all-features`.
+    Use `netsuke build fmt` to apply Rust and Markdown formatting fixes
+    reported by the formatter check.
 - Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in the code itself rather than
   silencing them.
@@ -316,10 +318,21 @@ project:
 
 ## Markdown guidance
 
-- Validate Markdown files using `make markdownlint`.
-- Run `make fmt` after any documentation changes to format all Markdown
-  files and fix table markup.
-- Validate Mermaid diagrams in Markdown files by running `make nixie`.
+- Validate Markdown files using `netsuke build markdownlint`. This action also
+  enforces en-GB-oxendict spelling.
+- Enforce spelling with `netsuke build spelling`. It regenerates `typos.toml`
+  using the pinned `typos-config-builder` and the `typos.local.toml` overlay,
+  then checks tracked Markdown. Never edit generated entries by hand; add
+  narrow repository-specific entries to `typos.local.toml` instead.
+- Quoted APIs and identifiers retain upstream spelling. Put them in backticks
+  or fenced code blocks, which the spelling gate ignores, rather than adding
+  word-level exceptions. Put repository-specific exceptions in
+  `typos.local.toml`, using exact or full-line patterns rather than bare
+  accepted words.
+- Run `netsuke build fmt` after any documentation changes to format all
+  Markdown files and fix table markup.
+- Validate Mermaid diagrams in Markdown files by running
+  `netsuke build nixie`.
 - Markdown paragraphs and bullet points must be wrapped at 80 columns.
 - Code blocks must be wrapped at 120 columns.
 - Tables and headings must not be wrapped.
@@ -331,15 +344,15 @@ project:
 
 ## Spelling
 
-- `make spelling` runs the pinned `typos-config-builder gate`, which
+- `netsuke build spelling` runs the pinned `typos-config-builder gate`, which
   regenerates `typos.toml` from the shared en-GB-oxendict dictionary and
   `typos.local.toml`, then checks spelling and the shared phrase corrections.
 - `typos.toml` is generated: never edit it by hand. Put narrow
   repository-specific exceptions in `typos.local.toml`, as exact or full-line
   patterns rather than bare accepted words.
-- When `make spelling` changes `typos.toml`, commit the regenerated file. If
-  the change is unrelated to your work, commit it in a separate base pull
-  request and stack your branch on it, so each review diff stays focused.
+- When `netsuke build spelling` changes `typos.toml`, commit the regenerated
+  file. If the change is unrelated to your work, commit it in a separate base
+  pull request and stack your branch on it, so each review diff stays focused.
 
 <!-- typos-config-builder:agents-md:end -->
 
@@ -358,7 +371,8 @@ internally facing conventions or practices in `docs/developers-guide.md`.
 
 The following tooling is available in this environment:
 
-- `mbake` — A Makefile validator. Run using `mbake validate Makefile`.
+- `netsuke` — Compiles the repository's `Netsukefile` into a Ninja build graph
+  and runs its public build and validation actions.
 - `strace` — Traces system calls and signals made by a process; useful for
   debugging runtime behaviour and syscalls.
 - `gdb` — The GNU Debugger, for inspecting and controlling programs as they
@@ -386,8 +400,6 @@ The following tooling is available in this environment:
 - `hyperfine` — Command-line benchmarking tool with statistical output.
 - `shellcheck` — Linter for shell scripts, identifying errors and bad practices.
 - `fd` — Fast, user-friendly `find` alternative with sensible defaults.
-- `checkmake` — Linter for `Makefile`s, ensuring they follow best practices and
-  conventions.
 - `srgn` — [Structural grep](https://github.com/alexpovel/srgn), searches code
   and enables editing by syntax tree patterns.
 - `difft` **(Difftastic)** — Semantic diff tool that compares code structure
