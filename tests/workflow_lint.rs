@@ -1,6 +1,7 @@
 //! Integration tests for the repository's GitHub Actions linting boundary.
 
 use std::{
+    env,
     error::Error,
     io,
     path::PathBuf,
@@ -15,6 +16,7 @@ use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
 const CI_WORKFLOW: &str = ".github/workflows/ci.yml";
+const NETSUKEFILE: &str = "Netsukefile";
 const WORKFLOW_FILES: [&str; 5] = [
     ".github/workflows/ci.yml",
     ".github/workflows/coverage-main.yml",
@@ -33,11 +35,11 @@ mod whitaker;
 fn lint_target_invokes_the_workflow_linters(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
 
-    let output = sandbox.run_lint(None).expect("run make lint");
+    let output = sandbox.run_lint(None).expect("run netsuke build lint");
 
     assert!(
         output.status.success(),
-        "make lint failed: {}",
+        "netsuke build lint failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(
@@ -54,9 +56,14 @@ fn lint_target_propagates_a_workflow_linter_failure(
 ) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
 
-    let output = sandbox.run_lint(Some("actionlint")).expect("run make lint");
+    let output = sandbox
+        .run_lint(Some("actionlint"))
+        .expect("run netsuke build lint");
 
-    assert!(!output.status.success(), "make lint unexpectedly succeeded");
+    assert!(
+        !output.status.success(),
+        "netsuke build lint unexpectedly succeeded"
+    );
     assert_eq!(
         sandbox
             .workflow_linter_invocations()
@@ -71,9 +78,14 @@ fn lint_target_fails_when_a_workflow_linter_is_missing(
 ) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
 
-    let output = sandbox.run_with_missing_yamllint().expect("run make lint");
+    let output = sandbox
+        .run_with_missing_yamllint()
+        .expect("run netsuke build lint");
 
-    assert!(!output.status.success(), "make lint unexpectedly succeeded");
+    assert!(
+        !output.status.success(),
+        "netsuke build lint unexpectedly succeeded"
+    );
     assert!(
         sandbox
             .workflow_linter_invocations()
@@ -87,6 +99,9 @@ fn workflow_lint_policy_supports_github_actions_and_pinned_ci_tools(
     lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
 ) {
     let _sandbox = lint_sandbox.expect("create lint sandbox");
+    let manifest = read_repository_file(NETSUKEFILE).expect("read Netsukefile");
+    assert!(manifest.contains("      - rust-lint\n      - github-actions-lint\n"));
+    assert!(manifest.contains("  - name: github-actions-lint\n"));
     let yamllint_policy = read_repository_file(YAML_POLICY).expect("read yamllint policy");
     assert!(yamllint_policy.contains("check-keys: false"));
     assert!(yamllint_policy.contains("allowed-values: ['true', 'false']"));
@@ -177,7 +192,7 @@ fn workflow_lint_policy_supports_github_actions_and_pinned_ci_tools(
     let lint_step = workflow_step(&ci_workflow, "Lint").expect("find lint step");
     assert_eq!(
         workflow_step_field(lint_step, "run").expect("find lint command"),
-        "/usr/bin/make ACTIONLINT=\"$GITHUB_WORKSPACE/actionlint\" lint"
+        "ACTIONLINT=\"$GITHUB_WORKSPACE/actionlint\" netsuke build lint"
     );
 }
 
@@ -191,6 +206,7 @@ struct LintSandbox {
 fn lint_sandbox() -> Result<LintSandbox, Box<dyn Error>> {
     let temporary_directory = tempfile::tempdir()?;
     let directory = Dir::open_ambient_dir(temporary_directory.path(), ambient_authority())?;
+    directory.write(NETSUKEFILE, read_repository_file(NETSUKEFILE)?)?;
     let invocation_log = temporary_directory.path().join("invocations.log");
     for tool in ["cargo", "whitaker", "yamllint", "actionlint"] {
         write_fake_tool(&directory, tool)?;
@@ -222,26 +238,27 @@ impl LintSandbox {
     }
 
     fn run_lint(&self, failing_tool: Option<&str>) -> Result<Output, Box<dyn Error>> {
-        self.run_make(failing_tool, &self.tool_command("yamllint"))
+        self.run_netsuke(failing_tool, &self.tool_command("yamllint"))
     }
 
     fn run_with_missing_yamllint(&self) -> Result<Output, Box<dyn Error>> {
-        self.run_make(None, "/missing/yamllint")
+        self.run_netsuke(None, "/missing/yamllint")
     }
 
-    fn run_make(
+    fn run_netsuke(
         &self,
         failing_tool: Option<&str>,
         yamllint: &str,
     ) -> Result<Output, Box<dyn Error>> {
-        let mut command = Command::new("make");
+        let mut path = vec![self.temporary_directory.path().to_path_buf()];
+        path.extend(env::split_paths(&env::var_os("PATH").unwrap_or_default()));
+        let mut command = Command::new("netsuke");
         command
-            .current_dir(repository_root())
-            .arg("lint")
-            .arg(format!("CARGO={}", self.tool_command("cargo")))
-            .arg(format!("WHITAKER={}", self.tool_command("whitaker")))
-            .arg(format!("YAMLLINT={yamllint}"))
-            .arg(format!("ACTIONLINT={}", self.tool_command("actionlint")))
+            .current_dir(self.temporary_directory.path())
+            .args(["build", "lint"])
+            .env("PATH", env::join_paths(path)?)
+            .env("YAMLLINT", yamllint)
+            .env("ACTIONLINT", self.tool_command("actionlint"))
             .env("LINT_INVOCATION_LOG", &self.invocation_log)
             .env(
                 "WHITAKER_RUSTFLAGS_LOG",

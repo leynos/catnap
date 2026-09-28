@@ -1,0 +1,114 @@
+netsuke_version: "1.0.0"
+
+actions:
+  - name: all
+    description: Run comprehensive checks sequentially
+    deps:
+      - check-fmt
+      - lint
+      - test
+      - spelling
+    dependency_order: serial
+
+  - name: clean
+    description: Remove build artefacts
+    command: "cargo clean"
+
+  - name: test
+    description: Run tests with cargo-nextest or Cargo
+    command: >-
+      RUSTFLAGS='-D warnings'
+      cargo {% if command_available("cargo-nextest", cwd_mode="never") %}nextest run{% else %}test{% endif %}
+      --all-targets --all-features
+
+  - name: build
+    description: Build the debug binary
+    command: "cargo build --bin catnap"
+
+  - name: release
+    description: Build the release binary
+    command: "cargo build --release --bin catnap"
+
+  - name: coverage
+    description: Generate lcov coverage with lld
+    command:
+      - 'echo "coverage linker flags: -fuse-ld=lld"'
+      - >-
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=clang
+        RUSTFLAGS="-D warnings -C link-arg=-fuse-ld=lld"
+        CFLAGS="-fuse-ld=lld"
+        LDFLAGS="-fuse-ld=lld"
+        cargo llvm-cov --lcov --output-path lcov.info
+        --all-targets --all-features
+
+  - name: lint
+    description: Run Rust and GitHub Actions linters
+    deps:
+      - rust-lint
+      - github-actions-lint
+    dependency_order: serial
+
+  - name: rust-lint
+    description: Run rustdoc, Clippy, and Whitaker
+    command:
+      - RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+      - cargo clippy --all-targets --all-features -- -D warnings
+      - >-
+        PATH="$PATH:$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.bun/bin"
+        RUSTFLAGS="-D warnings" whitaker --all --
+        --all-targets --all-features
+
+  - name: github-actions-lint
+    description: Validate GitHub Actions workflows
+    command:
+      - '${YAMLLINT:-yamllint} .github/workflows'
+      - '${ACTIONLINT:-actionlint}'
+
+  - name: typecheck
+    description: Type-check without building
+    command: "RUSTFLAGS='-D warnings' cargo check --all-targets --all-features"
+
+  - name: fmt
+    description: Format Rust and Markdown sources
+    command:
+      - cargo +nightly fmt --all
+      - >-
+        mdtablefix --in-place --git --include-untracked
+        --wrap --renumber --breaks --ellipsis --fences
+      - 'markdownlint-cli2 --fix "**/*.md"'
+
+  - name: check-fmt
+    description: Verify formatting
+    command:
+      - cargo fmt --all -- --check
+      - >-
+        mdtablefix --check --git --include-untracked
+        --wrap --renumber --breaks --ellipsis --fences
+
+  - name: markdownlint
+    description: Lint Markdown files
+    command: >-
+      find . -type f -name "*.md"
+      -not -path "./target/*"
+      -not -path "./.uv-cache/*"
+      -not -path "./.uv-tools/*"
+      -print0 | xargs -0 markdownlint-cli2
+    deps:
+      - spelling
+
+  - name: spelling
+    description: Enforce en-GB-oxendict spelling
+    command: >-
+      UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+      uv tool run --python 3.14
+      --from "git+https://github.com/leynos/typos-config-builder.git@v0.1.1"
+      typos-config-builder gate --repository .
+
+  - name: nixie
+    description: Validate Mermaid diagrams
+    command: "nixie --no-sandbox"
+
+targets: []
+
+defaults:
+  - all

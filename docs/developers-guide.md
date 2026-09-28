@@ -6,20 +6,20 @@ records the compatibility evidence and limits behind the development default.
 
 ## Local Workflow
 
-Use `make all` as the public entrypoint for formatting, linting, and tests.
-`make lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint. Whitaker
-runs with warnings denied, without the development frontend and linker flags.
-CI installs its rolling suite through the pinned shared `install-whitaker`
-action, which verifies the default installer binary and refuses a source-build
-fallback. The suite version is not overridden. `make all` keeps its gates
-sequential even when invoked with `-j`. The fake `make -j4 all` runner in
-`tests/workflow_lint/whitaker.rs` is local to the Whitaker consumer contract;
-it exercises gate order and failure without replacing the repository's real
-checks. `make test` prefers `cargo nextest run` and falls back to `cargo test`
-when cargo-nextest is not available. Since nextest does not execute doctests,
-the nextest route follows with `cargo test --workspace --doc --all-features`;
-the Cargo fallback runs its normal doctests. `make coverage` uses
-`cargo llvm-cov` with `lld`.
+Use `netsuke` as the public entrypoint for formatting, linting, and tests. The
+default `all` action runs its formatting, lint, test, and spelling gates
+sequentially. The separate `markdownlint` and `nixie` actions validate Markdown
+and Mermaid diagrams. `netsuke build lint` runs rustdoc, Clippy, Whitaker,
+yamllint, and actionlint. Whitaker runs with warnings denied, without the
+development frontend and linker flags. CI installs its rolling suite through
+the pinned shared `install-whitaker` action,
+which verifies the default installer binary and refuses a source-build
+fallback. The suite version is not overridden. `netsuke build test` prefers
+`cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
+available on `PATH`; its executable lookup excludes the workspace. Since
+nextest does not execute doctests, the nextest route follows with
+`cargo test --workspace --doc --all-features`; the Cargo fallback runs its
+normal doctests. `netsuke build coverage` uses `cargo llvm-cov` with `lld`.
 
 ### Coverage publication
 
@@ -68,11 +68,12 @@ The reasons are both quiet failures: a pull request from a fork cannot read the
 secret, so an upload there is silently skipped, and CodeScene accepts an upload
 only for a branch it analyses, which a pull request head is not.
 
-`make test-workflow-contracts` enforces the split by running
+`netsuke build test-workflow-contracts` enforces the split by running
 `cv005-contracts check`, the shared contract library in `leynos/shared-actions`
-(`packages/cv005-contracts`), from a full commit named by `CV005_CONTRACTS_REF`
-in the Makefile; CI runs it in a "Check the CV-005 contracts" step. A fix to
-the rules is therefore a pin bump. The repository's parameters are in
+(`packages/cv005-contracts`), from the full commit named by
+`CV005_CONTRACTS_REF` in the `Netsukefile`; CI runs it in a "Check the CV-005
+contracts" step. A fix to the rules is therefore a pin bump. The repository's
+parameters are in
 `.github/cv005.toml`: its `repository` name and the `[selection]` the baseline
 measures, which the publisher's generator must carry and every pull-request
 lane must match. The library's own suite proves each rule refuses the shape it
@@ -93,14 +94,59 @@ baseline's only writer. When adding a workflow, keep CodeScene, `cs-coverage`,
 and the token out of it unless it is the publisher; the library names the
 clause a change breaks.
 
+### GitHub Actions workflow linting
+
+`netsuke build lint` runs `yamllint .github/workflows` and `actionlint`, so
+every workflow receives YAML style, syntax, and GitHub Actions semantic
+validation. The `.yamllint.yml` policy accepts GitHub's unquoted `on` trigger
+key while requiring `true` and `false` for boolean values.
+
+Install `yamllint` with the version configured by `YAMLLINT_VERSION`, then
+install `actionlint` using its
+[upstream instructions](https://github.com/rhysd/actionlint/blob/main/README.md#installation).
+Make both linters available on `PATH` before running the target:
+
+```sh
+export YAMLLINT_VERSION=1.38.0
+uv tool install "yamllint==${YAMLLINT_VERSION}"
+export PATH="$(uv tool dir --bin):${PATH}"
+netsuke build lint
+```
+
+CI caches the uv cache, tool environment, and executable directory, then
+installs `yamllint` with `uv tool`. It separately caches actionlint v1.7.12
+and, on a cache miss, uses the upstream download script pinned to commit
+`914e7df21a07ef503a81201c76d2b11c789d3fca`, verifying the release archive's
+SHA-256 checksum
+(`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`) before
+use. The CI lint step passes the cached or downloaded actionlint executable via
+an absolute `ACTIONLINT` path to Netsuke, so checkout contents cannot shadow
+that executable.
+
 ## Tooling
 
 On Linux targets, `.cargo/config.toml` configures clang to link with `mold` so
 debug builds link quickly. Coverage generation uses `lld` because LLVM coverage
 tooling expects LLVM-compatible linker behaviour.
 
-Install `clang`, `lld`, and `mold` before running the full generated workflow
-locally on Linux.
+Install `clang`, `lld`, `mold`, Ninja, and the `netsuke-build` crate before
+running the full generated workflow locally on Linux. Netsuke currently
+requires its pinned nightly toolchain when installed from crates.io:
+
+```sh
+rustup toolchain install nightly-2026-08-23
+cargo +nightly-2026-08-23 install --locked netsuke-build \
+  --version =0.1.0-beta4
+```
+
+Consult the tagged Netsuke
+[users' guide](https://github.com/leynos/netsuke/blob/v0.1.0-beta4/docs/users-guide.md)
+and
+[migration guide](https://github.com/leynos/netsuke/blob/v0.1.0-beta4/docs/v0-1-0-migration-guide.md)
+for the beta4 manifest and executable-discovery contracts.
+
+The CI workflow caches the installed `~/.cargo/bin/netsuke` binary by Netsuke
+version, host platform, architecture, and installation toolchain.
 
 ### The build standard
 
@@ -114,9 +160,11 @@ only, so the linker flag lives in a Linux-only table and macOS and Windows keep
 their platform linker. Cargo selects one `rustflags` source rather than merging
 them, so every source repeats the development flags apart from the linker.
 
-An assigned `RUSTFLAGS` replaces the configuration's flags, so the Makefile
-recipes that set it compose the standard's flags onto any inherited value (CI's
-`setup-rust` exports one). Two builds are deliberately excluded: coverage
+An assigned `RUSTFLAGS` replaces the configuration's flags, so the development
+build, test, typecheck, and Rust lint actions compose the standard's flags onto
+any inherited value (CI's `setup-rust` exports one). Whitaker is an exception:
+it runs with warning denial but without the development flags. Two builds are
+deliberately excluded: coverage
 assigns `RUSTFLAGS` without the fast flags, because a measurement should not
 depend on them, and the release recipe and workflow keep the platform linker,
 because they assign `RUSTFLAGS` (even an empty value displaces the
@@ -149,24 +197,26 @@ flowchart TD
 _Figure 1: Build-command `RUSTFLAGS` routing and platform linker selection._
 
 On Linux, install `clang` and `lld` with the operating system's package
-manager, then run `make install-build-tools` to install the pinned nightly with
-its requested components, including `rust-analyzer` and Cranelift, and the
-checksum-verified `mold` release. CI's shared Rust setup action has a fixed
-component list, so `rustup component add rust-analyzer` and
-`make install-cranelift` add the missing components before any development
-build. `make check-build-tools` verifies the nightly and its components,
-`clang`, and the pinned `mold` version before development, test, lint, and
-typecheck builds. Formatting and coverage targets are checked separately:
-formatting checks the toolchain and its requested components, while coverage
-checks its toolchain components other than Cranelift, `clang`, and `lld`
-without requiring `mold`. The local Make routes put `$(BUILD_TOOLS_PREFIX)/bin`
-first on `PATH`; CI keeps the binary path supplied by `setup-rust`'s
-`install-mold` input. The shared `scripts/build-tools-common.sh` helpers are
-scoped to the installer and checker so both commands read the same pins.
+manager, then run `netsuke build install-build-tools` to install the pinned
+nightly with its requested components, including `rust-analyzer` and Cranelift,
+and the checksum-verified `mold` release. CI's shared Rust setup action has a
+fixed component list, so `rustup component add rust-analyzer` and
+`netsuke build install-cranelift` add the missing components before any
+development build. `netsuke build check-build-tools` verifies the nightly and
+its components, `clang`, and the pinned `mold` version before development,
+test, lint, and typecheck builds. Formatting and coverage are checked
+separately: `check-rust-toolchain` verifies the toolchain and requested
+components for formatting, while `check-coverage-tools` verifies the coverage
+toolchain components plus `clang` and `lld`, without requiring Cranelift or
+`mold`. The local Netsuke routes put the configured
+tool directory first on `PATH`; CI keeps the binary path supplied by
+`setup-rust`'s `install-mold` input. The shared
+`scripts/build-tools-common.sh` helpers are scoped to the installer and
+checker so both commands read the same pins.
 `tests/build_standard_contract.rs` holds the Rust flag standard. It reads the
-configuration sources, the commands `make -n` prints for each development
-target on a Linux host and a macOS host (each keeping the caller's own
-`RUSTFLAGS`) and for each coverage and release target on a Linux host, and the
+configuration sources, the commands generated for each development target on a
+Linux host and a macOS host (each keeping the caller's own `RUSTFLAGS`) and for
+each coverage and release target on a Linux host, and the
 `setup-rust` steps of the CI workflows (each must pass `install-mold`), so a
 flag lost through a recipe or workflow edit fails there.
 `tests/build_tool_workflow_contract.rs` also scans workflow files for Linux
@@ -176,17 +226,18 @@ steps, plus later system-package installs that could shadow the pinned binary.
 
 ### Markdown formatting and lint
 
-`make fmt` and `make check-fmt` use `mdtablefix` with Git-aware selection.
+`netsuke build fmt` and `netsuke build check-fmt` use `mdtablefix` with
+Git-aware selection.
 Tracked Markdown and untracked files that Git does not ignore are included, so
 new documentation is formatted before staging; ignored generated files such as
 those under `target/` stay out of the selection. CI installs `mdtablefix` 0.6.0
 through the pinned shared action.
 
-The Makefile pins `markdownlint-cli2` to the version bundled by the CI action.
-Local `make fmt` and `make markdownlint` invoke that version through `bunx`, so
-the formatter and linter use the same rule implementation as CI. Install Bun for
-`make fmt` and `make markdownlint`, and install `mdtablefix` for `make fmt` and
-`make check-fmt`.
+The CI action pins `markdownlint-cli2` to its bundled version. Local
+`netsuke build fmt` and `netsuke build markdownlint` invoke that version through
+`bunx`, so the formatter and linter use the same rule implementation as CI.
+Install Bun for `netsuke build fmt` and `netsuke build markdownlint`, and
+install `mdtablefix` for `netsuke build fmt` and `netsuke build check-fmt`.
 
 ### Cold-cache allowance for the trybuild tests
 
@@ -200,8 +251,8 @@ build alone can exceed 180 s on a GitHub-hosted runner.
 The coverage action marks the two trybuild tests ignored because their nested
 Cargo processes reload the Cranelift development flags while LLVM coverage adds
 `-C instrument-coverage`, which Cranelift cannot use. CI runs the same UI tests
-with `make test-ui` before starting coverage, so they still gate pull requests;
-`make test` includes them in ordinary local validation.
+with `netsuke build test-ui` before starting coverage, so they still gate pull
+requests; `netsuke build test` includes them in ordinary local validation.
 
 ### Cranelift development backend
 
@@ -218,7 +269,7 @@ release build passed with that exact override and the image's `cc` linker.
 release workflow uses stable. `tests/release_workflow.rs` requires empty
 `RUSTFLAGS` on both stable build steps, and
 `tests/cranelift_backend_contract.rs` checks the development flag, pinned
-component, and Make commands. The compatibility experiment covers one stable
+component, and Netsuke commands. The compatibility experiment covers one stable
 Cross target; a workflow dispatch remains responsible for proving the full
 release matrix. Cranelift's preview backend has unsupported language and
 platform features, so keep coverage on LLVM and revisit this decision if the
@@ -348,11 +399,11 @@ non-breaking change for downstream crates.
 Run the focused harness with:
 
 ```sh
-make test-ui
+netsuke build test-ui
 ```
 
-`make test` also discovers the harness and is the required local pre-commit
-entrypoint. CI runs `make test-ui` separately before the coverage step.
+`netsuke build test` also discovers the harness and is the required pre-commit
+entrypoint. CI runs `netsuke build test-ui` separately before the coverage step.
 
 #### Updating display fixtures
 
@@ -370,7 +421,7 @@ expected diagnostic. Add every new variant to the fixture's `match`, then
 regenerate the snapshot with:
 
 ```sh
-TRYBUILD=overwrite make test-ui
+TRYBUILD=overwrite netsuke build test-ui
 ```
 
 Review the regenerated diagnostic before committing. Because the snapshots
@@ -385,16 +436,15 @@ refresh.
 Run the spelling gate with:
 
 ```bash
-make spelling
+netsuke build spelling
 ```
 
-`TYPOS_CONFIG_BUILDER_VERSION` in the `Makefile` pins the
-`typos-config-builder` release the gate runs (currently `v0.1.3`). Raise it
-together with the regenerated `typos.toml`, never on its own.
+The `Netsukefile` pins the `typos-config-builder` revision the gate runs.
+Update that pin together with regenerated `typos.toml`, never on its own.
 
 The gate enforces en-GB-oxendict spelling in tracked Markdown prose.
-`make markdownlint` depends on it, and `make all` runs it with the repository's
-other checks.
+`netsuke build markdownlint` depends on it, and the default `all` action runs
+it with the repository's other checks.
 
 The tracked `typos.toml` is regenerated on every run from the live shared
 dictionary and the repository-specific `typos.local.toml` overlay. Never edit

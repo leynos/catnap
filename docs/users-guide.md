@@ -57,30 +57,35 @@ nightly-only development flags before compiling. On Linux targets,
 link quickly. Coverage generation stays on LLVM and uses `lld` because LLVM
 coverage tools expect LLVM-compatible linker behaviour.
 
-## Makefile Targets
+## Netsukefile actions
 
-The generated `Makefile` exposes these public targets:
+The repository's `Netsukefile` exposes these public actions. Use
+`netsuke help targets` to list all actions and their descriptions. Commonly
+used actions include:
 
-- `make all` runs formatting checks, linting, and tests.
-- `make check-fmt` verifies Rust formatting.
-- `make lint` runs rustdoc, Clippy, and Whitaker with warnings denied.
-- `make test` runs `cargo nextest run` when cargo-nextest is installed and
-  follows it with workspace doctests. When cargo-nextest is unavailable, it
-  falls back to `cargo test`, which runs its normal doctest suite.
-- `make install-build-tools` installs the pinned nightly with its requested
-  components and the checksum-verified `mold` release on Linux.
-- `make check-build-tools` verifies the pinned nightly and its components,
-  `clang`, and `mold` before development, test, lint, and typecheck builds.
-- `make check-rust-toolchain` verifies the pinned channel and components before
-  formatting commands.
-- `make check-coverage-tools` verifies the pinned toolchain, `clang`, and `lld`
-  before coverage generation.
-- `make build` builds the debug target.
-- `make release` builds the release target.
-- `make coverage` writes `lcov.info` using `cargo llvm-cov` and `lld`.
-- `make markdownlint` checks Markdown files.
-- `make nixie` validates Mermaid diagrams.
+- `netsuke` runs the default `all` action for formatting checks, linting, tests,
+  and spelling.
+- `netsuke build check-fmt` verifies Rust and Markdown formatting.
+- `netsuke build lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint
+  with warnings denied where supported.
+- `netsuke build github-actions-lint` validates GitHub Actions workflows.
+- `netsuke build test` runs `cargo nextest run` when cargo-nextest is installed
+  and then runs workspace doctests. When cargo-nextest is unavailable, it
+  falls back to `cargo test`, which includes its normal doctest run.
+- `netsuke build test-ui` runs the focused Rust UI tests.
+- `netsuke build test-workflow-contracts` checks the repository's workflow
+  contracts, including the shared coverage policy.
+- `netsuke build typecheck` checks all targets and features without producing
+  binaries.
+- `netsuke build install-build-tools` installs the pinned nightly toolchain and
+  local linker; `check-build-tools`, `check-rust-toolchain`, and
+  `check-coverage-tools` verify the corresponding prerequisites.
+- `netsuke build build` builds the debug target.
+- `netsuke build release` builds the release target.
+- `netsuke build coverage` writes `lcov.info` using `cargo llvm-cov` and `lld`.
+- `netsuke build markdownlint` checks Markdown files.
+- `netsuke build nixie` validates Mermaid diagrams.
 
-On Linux, install `clang` and `lld` with the operating system's package
-manager, then run `make install-build-tools` to install the pinned nightly and
-`mold`.
+Install `clang`, `lld`, `mold`, Ninja, and the `netsuke-build` crate before
+running the full generated workflow locally on Linux. The developer's guide
+documents the current Cargo installation command.
