@@ -47,11 +47,11 @@ extend-ignore-re = [
     "\\bflavor = ",
     "\\bmold\\b",
     "\\brust-analyzer\\b",
-    "\\bvar\\.iamge_id\\b",
     "\\{COLOR\\}",
     "\\{color\\}",
     "`[^`\\n]+`",
     "`color`",
+    "`var\\.iamge_id` instead of `var\\.image_id`",
     "currentColor",
     "types: \\[[^]]*\\blabeled\\b",
 ]
