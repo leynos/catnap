@@ -55,6 +55,8 @@ jobs:
         uses: astral-sh/setup-uv@e105c8fb1d7b13074b851babdaef4185243c6a07
         with:
           python-version: '3.14'
+      - name: Check the CV-005 contracts
+        run: make test-workflow-contracts
       - name: Cache yamllint
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
@@ -153,7 +155,7 @@ jobs:
         # is not. `coverage-main.yml` owns both persistent outputs, and the
         # baseline paths are the action's defaults on both sides, so this
         # ratchet reads the baseline that workflow writes.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@45bef492e355d6b586bce00d2249a4038a2a7363
+        uses: leynos/shared-actions/.github/actions/generate-coverage@d4d248bbbecdcf7b4f5bc79ffd4d6caee370bd79
         env:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
           RUSTFLAGS: -C link-arg=-fuse-ld=lld

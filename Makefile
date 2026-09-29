@@ -1,4 +1,4 @@
-.PHONY: help all clean test build release coverage lint github-actions-lint fmt check-fmt markdownlint nixie spelling
+.PHONY: help all clean test build release coverage lint github-actions-lint fmt check-fmt markdownlint nixie spelling test-workflow-contracts
 
 
 TARGET ?= catnap
@@ -32,16 +32,28 @@ ACTIONLINT ?= actionlint
 WHITAKER ?= $(or $(shell command -v whitaker 2>/dev/null),$(wildcard $(USER_WHITAKER)),whitaker)
 UV ?= uv
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+
+# The CV-005 CodeScene contracts live in shared-actions and run from a full
+# commit, so a fix is a pin bump. `.github/cv005.toml` holds this repository's
+# only parameters.
+CV005_CONTRACTS_REF ?= a38feb9be25755c30eca5bda96bd3786a5b89c6b
+CV005_CONTRACTS = $(UV_ENV) $(UV) tool run --python 3.13 \
+	--from 'git+https://github.com/leynos/shared-actions@$(CV005_CONTRACTS_REF)\#subdirectory=packages/cv005-contracts' \
+	cv005-contracts
+
 YAMLLINT_VERSION ?= 1.38.0
 TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3
 TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 	"git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
 	typos-config-builder
 
+test-workflow-contracts: ## Check the CV-005 CodeScene workflow contracts
+	$(CV005_CONTRACTS) check --repository .
+
 build: target/debug/$(TARGET) ## Build debug binary
 release: target/release/$(TARGET) ## Build release binary
 
-all: check-fmt lint test spelling ## Perform a comprehensive check of code
+all: check-fmt lint test spelling test-workflow-contracts ## Perform a comprehensive check of code
 
 clean: ## Remove build artefacts
 	$(CARGO) clean
