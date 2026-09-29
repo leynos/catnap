@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - uses: leynos/shared-actions/.github/actions/setup-rust@4fb8eb7ad52454678a0662865d81d3cd17aa6e0e
+      - uses: leynos/shared-actions/.github/actions/setup-rust@9a27950942334d69ff79005b3a8db23bf151f43f
         with:
           expect-cache: any
           # cross builds inside a container that receives neither RUSTC_WRAPPER nor
