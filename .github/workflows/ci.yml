@@ -24,7 +24,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@4fb8eb7ad52454678a0662865d81d3cd17aa6e0e
+        uses: leynos/shared-actions/.github/actions/setup-rust@9a27950942334d69ff79005b3a8db23bf151f43f
         with:
           expect-cache: any
           # One sccache lane with coverage-main.yml's publisher: only a push to main saves,
