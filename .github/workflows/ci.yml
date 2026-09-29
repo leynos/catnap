@@ -25,6 +25,7 @@ jobs:
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
+          install-mold: 'true'
           expect-cache: any
           # One sccache lane with coverage-main.yml's publisher: only a push to main saves,
           # so pull requests warm from the lane main's publisher writes.
