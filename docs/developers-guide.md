@@ -122,8 +122,15 @@ toolchain. Stable Cargo refuses a `[profile.dev] codegen-backend` key ("config
 profile `dev` is not valid") and stops, so selecting the backend there breaks
 every release build; it broke the v0.1.0 release (recorded 2026-09-29).
 `tests/build_backend_contract.rs` fails if a `codegen-backend` key returns to
-the configuration while the release still builds on `+stable`. Revisit if the
-release moves to the pinned nightly.
+the configuration while the release still builds on `+stable`.
+`tests/stable_cargo_config.rs` asks stable Cargo itself, through
+`rustup run stable cargo build --release --bin no-such-bin`: stable Cargo
+resolves every configured profile before it looks up the target, so a refused
+configuration and an accepted one differ in the message, and nothing compiles.
+The probe must run on stable, because a nightly Cargo accepts a backend that
+stable refuses. The test therefore needs the stable toolchain installed
+(`rustup toolchain install stable --profile minimal`); CI installs it before
+the tests run. Revisit if the release moves to the pinned nightly.
 
 ## Implementation Boundaries
 

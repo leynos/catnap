@@ -104,6 +104,10 @@ jobs:
         shell: bash
       - name: Spelling
         run: make spelling
+      - name: Install the stable toolchain
+        # tests/stable_cargo_config.rs runs stable Cargo, the toolchain the
+        # release builds with, against .cargo/config.toml.
+        run: rustup toolchain install stable --profile minimal
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest
       - name: Cache Whitaker installer
