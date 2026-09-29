@@ -124,10 +124,7 @@ jobs:
               cargo install --locked whitaker-installer --version "${WHITAKER_INSTALLER_VERSION}"
             fi
           fi
-          # --cranelift provisions rustc-codegen-cranelift on Whitaker's pinned
-          # toolchain; this project builds with the Cranelift debug backend.
-
-          whitaker-installer --cranelift
+          whitaker-installer
           echo "Whitaker binary: $(command -v whitaker || true)"
       - name: Lint
         run: /usr/bin/make ACTIONLINT="$GITHUB_WORKSPACE/actionlint" lint
