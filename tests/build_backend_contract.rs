@@ -111,9 +111,9 @@ fn a_backend_key_is_refused_only_beside_a_stable_release(
     #[case] release: &str,
     #[case] expected: usize,
 ) -> Result<()> {
-    let config: toml::Table = toml::from_str(config)?;
-    let release: Value = serde_norway::from_str(release)?;
-    let found = findings(&config, &release);
+    let parsed_config: toml::Table = toml::from_str(config)?;
+    let parsed_release: Value = serde_norway::from_str(release)?;
+    let found = findings(&parsed_config, &parsed_release);
     ensure!(
         found.len() == expected,
         "expected {expected}, saw {found:?}"
