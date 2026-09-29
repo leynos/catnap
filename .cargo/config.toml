@@ -9,9 +9,9 @@
 # matching `[target.*]` table replaces `[build] rustflags` outright, and an
 # assigned `RUSTFLAGS` replaces both. Every flag is therefore repeated in each
 # source here, and the Makefile composes them into the `RUSTFLAGS` its
-# recipes set. Coverage and release builds assign `RUSTFLAGS` without them on
-# purpose: a measurement and a shipped artefact stay on the platform linker
-# and the single-threaded frontend.
+# recipes set. Coverage and the release recipe and workflow assign `RUSTFLAGS`
+# without them on purpose. A direct `cargo build --release` keeps these flags
+# unless `RUSTFLAGS` is assigned.
 #
 # No codegen backend is selected here, and none may be while the release
 # workflow builds with `cross +stable build --release`: stable Cargo refuses a
@@ -26,4 +26,9 @@ rustflags = ["-Zthreads=8"]
 # through to `[build] rustflags` above and keep their platform linker.
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
+
+# mold ships for Linux only, so the linker flag lives in a Linux-only table. A `cfg` table
+# matches every Linux target, not one architecture; the triple tables above keep only the
+# linker. Other targets, macOS and Windows included, fall through to `[build] rustflags`.
+[target.'cfg(target_os = "linux")']
 rustflags = ["-Zthreads=8", "-Clink-arg=-fuse-ld=mold"]
