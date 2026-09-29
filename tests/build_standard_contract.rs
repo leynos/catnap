@@ -27,6 +27,8 @@ mod ci_steps;
 mod config;
 #[path = "build_standard_support/make.rs"]
 mod make;
+#[path = "build_standard_support/properties.rs"]
+mod properties;
 use ci_steps::{coverage_problems, linker_install_problems, workflow_problems};
 use config::{CONFIG, Flags, Pin, Problems, THREADS_FLAG, TOOLCHAIN, config_problems};
 use make::{
@@ -49,56 +51,51 @@ fn none_of(problems: &Problems) -> Result<(), String> {
     }
 }
 
-/// A toolchain file pinning a nightly channel.
-const NIGHTLY: &str = "[toolchain]\nchannel = \"nightly-2026-05-28\"\n";
-/// A toolchain file pinning a stable channel.
-const STABLE: &str = "[toolchain]\nchannel = \"1.94.0\"\n";
-
 /// A compliant nightly configuration: the frontend flag in every source and
 /// mold in the Linux table alone.
 const NIGHTLY_OK: &str = concat!(
     "[build]\nrustflags = [\"-Zthreads=8\"]\n",
-    "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\n",
+    "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Zthreads=8\", \"-Clink-arg=-fuse-ld=mold\"]\n"
 );
 /// The same, with the linker flag spelled as the `-C` pair Cargo also accepts.
 const NIGHTLY_SPELLED_APART: &str = concat!(
     "[build]\nrustflags = [\"-Zthreads=8\"]\n",
-    "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\n",
+    "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Zthreads=8\", \"-C\", \"link-arg=-fuse-ld=mold\"]\n"
 );
 /// A compliant stable configuration: mold alone, in the Linux table.
 const STABLE_OK: &str = concat!(
-    "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\n",
+    "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Clink-arg=-fuse-ld=mold\"]\n"
 );
 /// A nightly configuration whose `[build]` source lost the frontend flag, so it
 /// is missing it and also differs from the Linux source.
 const BUILD_LOSES_THREADS: &str = concat!(
     "[build]\nrustflags = [\"-Dwarnings\"]\n",
-    "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\n",
+    "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Zthreads=8\", \"-Clink-arg=-fuse-ld=mold\"]\n"
 );
 /// A nightly configuration whose Linux table lost mold.
 const LINUX_LOSES_LINKER: &str = concat!(
     "[build]\nrustflags = [\"-Zthreads=8\"]\n",
-    "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\n",
+    "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Zthreads=8\"]\n"
 );
 /// A nightly configuration that names mold in `[build]`, beyond Linux.
 const LINKER_IN_BUILD: &str = concat!(
     "[build]\nrustflags = [\"-Zthreads=8\", \"-Clink-arg=-fuse-ld=mold\"]\n",
-    "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\n",
+    "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Zthreads=8\", \"-Clink-arg=-fuse-ld=mold\"]\n"
 );
 /// A nightly configuration with no `[build]` source for the other hosts.
 const NO_BUILD_SOURCE: &str = concat!(
-    "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\n",
+    "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Zthreads=8\", \"-Clink-arg=-fuse-ld=mold\"]\n"
 );
 /// A stable configuration that names the nightly-only frontend flag.
 const STABLE_WITH_THREADS: &str = concat!(
-    "[target.x86_64-unknown-linux-gnu]\nlinker = \"clang\"\n",
+    "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Zthreads=8\", \"-Clink-arg=-fuse-ld=mold\"]\n"
 );
 /// A `rustflags` array spread over several lines, which the reader refuses.
@@ -147,29 +144,6 @@ fn a_rustflags_array_spread_over_lines_is_refused() -> Result<(), String> {
         Ok(_) => Err("a rustflags array spread over lines was read".to_owned()),
         Err(_) => Ok(()),
     }
-}
-
-/// A toolchain file that names no channel.
-const NO_CHANNEL: &str = "[toolchain]\ncomponents = [\"clippy\"]\n";
-/// A toolchain file that names two channels.
-const TWO_CHANNELS: &str = "[toolchain]\nchannel = \"stable\"\nchannel = \"nightly\"\n";
-/// A toolchain file naming a channel the standard does not know.
-const UNKNOWN_CHANNEL: &str = "[toolchain]\nchannel = \"weekly\"\n";
-
-/// Scenario: toolchain files pinning each kind of channel, and files that do
-/// not.
-///
-/// Invariant: only a `nightly` channel reads as nightly, so only it is asked to
-/// carry `-Zthreads`; a missing, repeated or unknown channel is an error, not a
-/// stable pin by default.
-#[rstest]
-#[case::nightly(NIGHTLY, Some(Pin::Nightly))]
-#[case::stable(STABLE, Some(Pin::Stable))]
-#[case::missing(NO_CHANNEL, None)]
-#[case::repeated(TWO_CHANNELS, None)]
-#[case::unknown(UNKNOWN_CHANNEL, None)]
-fn the_pin_reader_tells_the_channels_apart(#[case] toolchain: &str, #[case] expected: Option<Pin>) {
-    assert_eq!(Pin::read(toolchain).ok(), expected);
 }
 
 /// Builds the assignment a fixture line is expected to read as.

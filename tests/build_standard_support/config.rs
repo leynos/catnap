@@ -12,6 +12,8 @@ pub const TOOLCHAIN: &str =
 pub const THREADS_FLAG: &str = "-Zthreads=8";
 /// The linker flag the Linux source adds, normalized to one token.
 pub const LINKER_FLAG: &str = "-Clink-arg=-fuse-ld=mold";
+/// The one Cargo target table that covers every Linux architecture.
+const LINUX_CFG_TABLE: &str = "target.'cfg(target_os = \"linux\")'";
 
 /// A list of complaints about the repository.
 pub type Problems = Vec<String>;
@@ -143,8 +145,8 @@ struct Source {
 }
 
 impl Source {
-    /// Returns whether the table applies on Linux alone.
-    fn is_linux(&self) -> bool { self.table.starts_with("target.") && self.table.contains("linux") }
+    /// Returns whether the table covers every Linux target.
+    fn is_linux(&self) -> bool { self.table == LINUX_CFG_TABLE }
 
     /// Returns what is wrong with the source's flags for a pin: the frontend
     /// flag on a nightly pin only, and mold in a Linux table only.
@@ -208,14 +210,15 @@ fn sources(config: &str) -> Result<Vec<Source>, String> {
     Ok(found)
 }
 
-/// Returns the complaints about which sources exist: there must be a Linux
-/// table, and a nightly pin needs a `[build]` source for the other hosts.
+/// Returns the complaints about which sources exist: the Linux `cfg` table is
+/// required because an architecture-specific table leaves other Linux targets
+/// without mold; a nightly pin also needs `[build]` for non-Linux hosts.
 fn shape_problems(found: &[Source], pin: Pin) -> Problems {
     let checks = [
         (found.is_empty(), "no rustflags source"),
         (
             !found.iter().any(Source::is_linux),
-            "no Linux target table carries rustflags",
+            "no all-Linux cfg target table carries rustflags",
         ),
         (
             pin.takes_threads() && !found.iter().any(|source| source.table == "build"),

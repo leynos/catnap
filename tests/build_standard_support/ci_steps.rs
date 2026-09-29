@@ -41,8 +41,20 @@ impl Step<'_> {
 
     /// Returns whether the step passes `install-mold: 'true'` (quoted or bare).
     fn passes_the_install_input(&self) -> bool {
-        self.lines
+        let Some((at, with_line)) = self
+            .lines
             .iter()
+            .enumerate()
+            .find(|(_, line)| line.trim() == "with:")
+        else {
+            return false;
+        };
+        let with_indent = indent(with_line);
+        self.lines
+            .get(at + 1..)
+            .unwrap_or_default()
+            .iter()
+            .take_while(|line| line.trim().is_empty() || indent(line) > with_indent)
             .any(|line| squeezed(line) == "install-mold:true")
     }
 
