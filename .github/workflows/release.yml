@@ -70,7 +70,6 @@ jobs:
           persist-credentials: false
       - uses: leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
-          install-mold: 'true'
           expect-cache: any
           # A release build never saves sccache, and cross builds inside a container
           # that receives neither RUSTC_WRAPPER nor SCCACHE_PATH, so sccache would be
