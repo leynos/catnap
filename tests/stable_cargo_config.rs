@@ -79,6 +79,12 @@ fn stable_cargo_accepts_the_repository_configuration() -> Result<()> {
             "no-such-bin",
         ])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
+        // The release assigns an empty `RUSTFLAGS`, which displaces the
+        // configuration's nightly-only `-Zthreads` flag before stable rustc
+        // sees it. The probe does the same: the `RUSTFLAGS` the make targets
+        // export carry `-Zthreads`, which stable rustc refuses outright. Profile
+        // validity, the subject here, does not depend on the flags.
+        .env("RUSTFLAGS", "")
         .output()
         .context("running `rustup run stable cargo`")?;
     judge(&String::from_utf8_lossy(&output.stderr))
