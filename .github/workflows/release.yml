@@ -48,6 +48,9 @@ jobs:
       - uses: leynos/shared-actions/.github/actions/setup-rust@4fb8eb7ad52454678a0662865d81d3cd17aa6e0e
         with:
           expect-cache: any
+          # cross builds inside a container that receives neither RUSTC_WRAPPER nor
+          # SCCACHE_PATH, so sccache would be installed, restored and started for nothing.
+          use-sccache: 'false'
           toolchain: stable
       - name: Cache cross binary
         id: cache-cross
