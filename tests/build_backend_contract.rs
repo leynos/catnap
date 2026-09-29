@@ -30,28 +30,65 @@ fn code_lines(text: &str) -> impl Iterator<Item = &str> {
         .filter(|line| !line.is_empty())
 }
 
-/// Returns whether a command line invokes Cargo, or `cross`, with the `+stable`
-/// toolchain override as its first argument.
+/// Returns the toolchain override (`+stable`, `+nightly-2026-05-28`) a command
+/// line gives Cargo or `cross` as its first argument, without the `+`.
 ///
 /// Only that shape counts: `+stable` in an `echo`, a URL or a comment is not a
 /// build, and reading it as one would report a key the release never reads.
-fn invokes_cargo_on_stable(line: &str) -> bool {
+fn cargo_override(line: &str) -> Option<&str> {
     let words: Vec<&str> = line.split_whitespace().collect();
-    words.windows(2).any(|pair| {
+    words.windows(2).find_map(|pair| {
         let [program, first_argument] = pair else {
-            return false;
+            return None;
         };
         let name = program.rsplit('/').next().unwrap_or_default();
-        matches!(name, "cargo" | "cross") && *first_argument == "+stable"
+        matches!(name, "cargo" | "cross")
+            .then(|| first_argument.strip_prefix('+'))
+            .flatten()
     })
 }
 
-/// Returns whether the workflow builds on the stable toolchain, either through
-/// `cargo +stable` / `cross +stable` or by installing `stable` through a
-/// toolchain action's `toolchain` input.
+/// Returns whether the workflow builds on the stable toolchain.
+///
+/// The toolchain override on the build command decides when the workflow gives
+/// one, because that is the toolchain Cargo runs; only a workflow whose commands
+/// name none falls back to the `toolchain` a setup action installs.
 fn builds_on_stable(workflow: &str) -> bool {
-    code_lines(workflow)
-        .any(|line| invokes_cargo_on_stable(line) || line.replace(' ', "") == "toolchain:stable")
+    let overrides: Vec<&str> = code_lines(workflow).filter_map(cargo_override).collect();
+    if overrides.is_empty() {
+        return code_lines(workflow).any(|line| line.replace(' ', "") == "toolchain:stable");
+    }
+    overrides.contains(&"stable")
+}
+
+/// Splits a configuration line into its top-level entries, dropping spaces and
+/// quote marks: an inline table's entries and its comma-separated pairs, with
+/// anything inside a quoted string kept whole.
+fn entries(line: &str) -> Vec<String> {
+    let mut found = vec![String::new()];
+    let mut quote: Option<char> = None;
+    for c in line.chars() {
+        match (quote, c) {
+            (None, '"' | '\'') => quote = Some(c),
+            (Some(open), _) if c == open => quote = None,
+            (None, '{' | ',') => found.push(String::new()),
+            (None, ' ') => {}
+            _ => {
+                if let Some(current) = found.last_mut() {
+                    current.push(c);
+                }
+            }
+        }
+    }
+    found
+}
+
+/// Returns whether a configuration line sets a `codegen-backend` key. A string
+/// value that merely contains the words, such as an `[env]` entry, is not one.
+fn sets_backend_key(line: &str) -> bool {
+    entries(line)
+        .iter()
+        .any(|entry| entry.starts_with("codegen-backend="))
 }
 
 /// Returns the configuration lines that select or enable a codegen backend.
@@ -62,13 +99,7 @@ fn builds_on_stable(workflow: &str) -> bool {
 /// `[unstable]`. Cargo refuses every one of them on stable.
 fn backend_keys(config: &str) -> Vec<&str> {
     code_lines(config)
-        .filter(|line| {
-            let squeezed: String = line
-                .chars()
-                .filter(|c| !matches!(c, ' ' | '"' | '\''))
-                .collect();
-            squeezed.contains("codegen-backend=")
-        })
+        .filter(|line| sets_backend_key(line))
         .collect()
 }
 
@@ -96,6 +127,12 @@ const STABLE_TOOLCHAIN_ACTION: &str = concat!(
 const NIGHTLY_TOOLCHAIN_ACTION: &str = concat!(
     "steps:\n  - uses: actions-rust-lang/setup-rust-toolchain@abc\n",
     "    with:\n      toolchain: nightly-2026-05-28\n  - run: cargo build --release\n"
+);
+/// A release workflow that installs stable but builds with a nightly override,
+/// so the command, not the action, names the toolchain Cargo runs.
+const STABLE_ACTION_NIGHTLY_COMMAND: &str = concat!(
+    "steps:\n  - uses: actions-rust-lang/setup-rust-toolchain@abc\n",
+    "    with:\n      toolchain: stable\n  - run: cross +nightly-2026-05-28 build --release\n"
 );
 /// A release workflow that mentions `+stable` in a command that builds nothing.
 const STABLE_IN_AN_ECHO: &str =
@@ -146,6 +183,22 @@ const LINKER_ONLY: &str = concat!(
     1
 )]
 #[case::cargo_invoked_by_path(CRANELIFT, STABLE_BY_PATH, 2)]
+#[case::inline_table_entry_after_a_comma(
+    "profile = { dev = { opt-level = 1, codegen-backend = \"cranelift\" } }\n",
+    STABLE_RELEASE,
+    1
+)]
+#[case::string_value_naming_the_key(
+    "[env]\nBACKEND_HINT = \"codegen-backend=cranelift\"\n",
+    STABLE_RELEASE,
+    0
+)]
+#[case::string_value_holding_a_comma_and_the_key(
+    "[env]\nHINT = \"opt-level=1, codegen-backend=cranelift\"\n",
+    STABLE_RELEASE,
+    0
+)]
+#[case::stable_action_with_a_nightly_command(CRANELIFT, STABLE_ACTION_NIGHTLY_COMMAND, 0)]
 #[case::linker_only_with_stable_release(LINKER_ONLY, STABLE_RELEASE, 0)]
 #[case::cranelift_with_nightly_toolchain_action(CRANELIFT, NIGHTLY_TOOLCHAIN_ACTION, 0)]
 #[case::stable_named_only_in_an_echo(CRANELIFT, STABLE_IN_AN_ECHO, 0)]
