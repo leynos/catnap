@@ -69,7 +69,7 @@ jobs:
         # baseline files as the pull-request lane, so the figure written here
         # is the figure a pull request is measured against. The action decides
         # by the event whether it writes the baseline or compares with it.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@d4d248bbbecdcf7b4f5bc79ffd4d6caee370bd79
+        uses: leynos/shared-actions/.github/actions/generate-coverage@ce8d747242ab3c9d58674d5838cf04c801eeb2f9
         env:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
           RUSTFLAGS: -C link-arg=-fuse-ld=lld
