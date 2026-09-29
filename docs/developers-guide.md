@@ -59,50 +59,30 @@ The reasons are both quiet failures: a pull request from a fork cannot read the
 secret, so an upload there is silently skipped, and CodeScene accepts an upload
 only for a branch it analyses, which a pull request head is not.
 
-`tests/coverage_workflows.rs` enforces the split over every workflow a pull
-request can reach, following local reusable-workflow calls transitively, and
-over every other workflow too: only the publisher may hold the token, name the
+`make test-workflow-contracts` enforces the split by running
+`cv005-contracts check`, the shared contract library in `leynos/shared-actions`
+(`packages/cv005-contracts`), from a full commit named by `CV005_CONTRACTS_REF`
+in the Makefile; CI runs it in a "Check the CV-005 contracts" step. A fix to
+the rules is therefore a pin bump. The repository's parameters are in
+`.github/cv005.toml`: its `repository` name and the `[selection]` the baseline
+measures, which the publisher's generator must carry and every pull-request
+lane must match. The library's own suite proves each rule refuses the shape it
+exists to refuse, so this repository keeps no copy of the readers or the
+refusal cases.
+
+The rule covers every workflow a pull request can reach, following local
+reusable-workflow calls transitively, and every other workflow too: only the
+publisher may hold the token, reach a secret by a computed name, name the
 CodeScene host, run the CLI or the uploader, or touch the retired
-`CODESCENE_CLI_SHA256` variable. It drives each rule against breaching fixtures
-under `tests/coverage_workflows/`. The pull-request surface is seeded by every
-event that runs a workflow for a pull request (`pull_request`,
-`pull_request_target`, `merge_group`, the two review events, `issue_comment`,
-`workflow_run`, and any push not limited to exactly `branches: [main]` or to
-tags), and the push side is followed the same way: a workflow a push starts, or
-one it calls, may run a ratcheted coverage step only behind
-`if: github.event_name == 'pull_request'`, so the publisher stays the
+`CODESCENE_CLI_SHA256` variable. Workflows are read strictly: a duplicate key,
+or a workflow declaring both `on` and `true`, is refused rather than silently
+resolved, and a reading failure exits 2 rather than passing. The pull-request
+surface is seeded by every event that runs a workflow for a pull request, and a
+workflow a push starts, or one it calls, may run a ratcheted coverage step only
+behind `if: github.event_name == 'pull_request'`, so the publisher stays the
 baseline's only writer. When adding a workflow, keep CodeScene, `cs-coverage`,
-and the token out of it unless it is the publisher; the contract names the
+and the token out of it unless it is the publisher; the library names the
 clause a change breaks.
-
-### GitHub Actions workflow linting
-
-`make lint` runs `yamllint .github/workflows` and `actionlint`, so every
-workflow receives YAML style, syntax, and GitHub Actions semantic validation.
-The `.yamllint.yml` policy accepts GitHub's unquoted `on` trigger key while
-requiring `true` and `false` for boolean values.
-
-Install `yamllint` with the version configured by `YAMLLINT_VERSION`, then
-install `actionlint` using its
-[upstream instructions](https://github.com/rhysd/actionlint/blob/main/README.md#installation).
-Make both linters available on `PATH` before running the target:
-
-```sh
-export YAMLLINT_VERSION=1.38.0
-uv tool install "yamllint==${YAMLLINT_VERSION}"
-export PATH="$(uv tool dir --bin):${PATH}"
-make lint
-```
-
-CI caches the uv cache, tool environment, and executable directory, then
-installs `yamllint` with `uv tool`. It separately caches actionlint v1.7.12
-and, on a cache miss, uses the upstream download script pinned to commit
-`914e7df21a07ef503a81201c76d2b11c789d3fca`, verifying the release archive's
-SHA-256 checksum
-(`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`) before
-use. The CI lint step passes the cached or downloaded actionlint executable via
-an absolute `ACTIONLINT` path while invoking trusted `/usr/bin/make`, so
-checkout contents cannot shadow `make`.
 
 ## Tooling
 
