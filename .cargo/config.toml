@@ -1,9 +1,8 @@
-[unstable]
-codegen-backend = true
-
-[profile.dev]
-codegen-backend = "cranelift"
-
+# No codegen backend is selected here, and none may be while the release
+# workflow builds with `cross +stable build --release`: stable Cargo refuses a
+# `[profile.dev] codegen-backend` key ("config profile `dev` is not valid") and
+# stops reading this file, which broke the v0.1.0 release. See "Cranelift" in
+# docs/developers-guide.md; tests/build_backend_contract.rs holds the rule.
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]

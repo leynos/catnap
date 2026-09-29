@@ -50,10 +50,12 @@ translation is available, with English used as the fallback locale.
 ## Development Tooling
 
 The project uses Rust 2024, a pinned nightly toolchain, strict lint settings,
-and documented source code. Development builds use Cranelift for debug code
-generation. On Linux targets, `.cargo/config.toml` configures clang to link with
-`mold` so local debug builds link quickly. Coverage generation uses `lld`
-instead because LLVM coverage tools expect LLVM-compatible linker behaviour.
+and documented source code. Development builds use the LLVM backend: the
+release builds on stable, which cannot read a Cranelift selection (see
+"Cranelift exception" in the developers' guide). On Linux targets,
+`.cargo/config.toml` configures clang to link with `mold` so local debug builds
+link quickly. Coverage generation uses `lld` instead because LLVM coverage
+tools expect LLVM-compatible linker behaviour.
 
 ## Makefile Targets
 

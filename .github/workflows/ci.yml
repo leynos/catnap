@@ -104,6 +104,10 @@ jobs:
         shell: bash
       - name: Spelling
         run: make spelling
+      - name: Install the stable toolchain
+        # tests/stable_cargo_config.rs runs stable Cargo, the toolchain the
+        # release builds with, against .cargo/config.toml.
+        run: rustup toolchain install stable --profile minimal
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest
       - name: Cache Whitaker installer
@@ -124,10 +128,7 @@ jobs:
               cargo install --locked whitaker-installer --version "${WHITAKER_INSTALLER_VERSION}"
             fi
           fi
-          # --cranelift provisions rustc-codegen-cranelift on Whitaker's pinned
-          # toolchain; this project builds with the Cranelift debug backend.
-
-          whitaker-installer --cranelift
+          whitaker-installer
           echo "Whitaker binary: $(command -v whitaker || true)"
       - name: Lint
         run: /usr/bin/make ACTIONLINT="$GITHUB_WORKSPACE/actionlint" lint
