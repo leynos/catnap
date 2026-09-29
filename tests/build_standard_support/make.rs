@@ -39,7 +39,8 @@ impl Host {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Assignment {
     Unassigned,
-    Flags(Flags),
+    /// An assignment, and whether it keeps the caller's own `RUSTFLAGS`.
+    Flags(Flags, bool),
 }
 
 /// Reads the `RUSTFLAGS` a `make -n` output line assigns. An unreadable form is
@@ -47,7 +48,8 @@ pub enum Assignment {
 /// not pass.
 ///
 /// ```text
-/// assigned_rustflags("RUSTFLAGS=\"-Zthreads=8\" cargo test") -> Flags(["-Zthreads=8"])
+/// assigned_rustflags("RUSTFLAGS=\"-Zthreads=8\" cargo test") -> Flags(["-Zthreads=8"], inherits: false)
+/// assigned_rustflags("RUSTFLAGS=\"${RUSTFLAGS:+$RUSTFLAGS }-Zthreads=8\" cargo test") -> inherits: true
 /// assigned_rustflags("cargo test")                           -> Unassigned
 /// assigned_rustflags("RUSTFLAGS=-Zthreads=8 cargo test")     -> Err
 /// ```
@@ -67,10 +69,15 @@ pub fn assigned_rustflags(line: &str) -> Result<Assignment, String> {
         .ok_or_else(|| format!("unterminated RUSTFLAGS in `{line}`"))?;
     // The recipes prepend the caller's own flags with these expansions; they are
     // not standard flags, and glued to the next word they would hide it.
+    let inherits =
+        assigned.contains("${RUSTFLAGS:+$RUSTFLAGS }") || assigned.contains("${RUSTFLAGS-}");
     let own = assigned
         .replace("${RUSTFLAGS:+$RUSTFLAGS }", " ")
         .replace("${RUSTFLAGS-}", "");
-    Ok(Assignment::Flags(Flags::from_words(own.split_whitespace())))
+    Ok(Assignment::Flags(
+        Flags::from_words(own.split_whitespace()),
+        inherits,
+    ))
 }
 
 /// Reads the assignment of each cargo or whitaker command `make -n` printed.
@@ -111,16 +118,23 @@ fn make_commands(target: &str, host: Host) -> Result<Vec<Assignment>, String> {
 }
 
 /// Returns the complaint about one development command, if any: an assigned
-/// `RUSTFLAGS` restates the frontend flag on a nightly pin, and mold on Linux.
+/// `RUSTFLAGS` keeps the caller's own flags and restates the frontend flag on a
+/// nightly pin, and mold on Linux.
 fn development_problem(
     target: &str,
     host: Host,
     pin: Pin,
     assignment: &Assignment,
 ) -> Option<String> {
-    let Assignment::Flags(flags) = assignment else {
+    let Assignment::Flags(flags, inherits) = assignment else {
         return None;
     };
+    if !inherits {
+        return Some(format!(
+            "`make {target}` on {} drops the caller's RUSTFLAGS",
+            host.make_value()
+        ));
+    }
     let reason = flags.meets(pin, host.takes_linker_flag()).err()?;
     Some(format!("`make {target}` on {} {reason}", host.make_value()))
 }
@@ -152,7 +166,7 @@ pub fn development_problems(host: Host, pin: Pin) -> Result<(Problems, usize), S
 /// Returns every complaint about one held-out command: it assigns nothing, so it
 /// takes the configuration's flags, or the assignment names a standard flag.
 fn held_out_command_problems(target: &str, assignment: &Assignment) -> Problems {
-    let Assignment::Flags(flags) = assignment else {
+    let Assignment::Flags(flags, _) = assignment else {
         return vec![format!(
             "`make {target}` runs a command that takes the configuration's flags"
         )];
