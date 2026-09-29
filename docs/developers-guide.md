@@ -122,6 +122,16 @@ own `RUSTFLAGS`) and for each coverage and release target on a Linux host, and
 the `setup-rust` steps of the CI workflows (each must pass `install-mold`), so
 a flag lost through a recipe or workflow edit fails there.
 
+### Cold-cache allowance for the trybuild tests
+
+`.config/nextest.toml` keeps the 180 s per-test allowance that the coverage
+action writes when a repository has no file of its own, and gives the `ui`
+tests three times that. They run a nested Cargo that compiles the whole
+dependency graph, and a pull request has no warm sccache directory until the
+default branch has written one (`setup-rust` owns that directory and only a
+push to the default branch writes it). Before that cache exists, the nested
+build alone can exceed 180 s on a GitHub-hosted runner.
+
 ### Cranelift exception
 
 Cranelift is not the development-profile codegen backend. The repository pins
