@@ -1,23 +1,27 @@
 //! Holds the release workflow's shape: every leg builds, macOS builds natively,
 //! and a dispatch never publishes by accident.
 //!
-//! `cross` has no Docker image for Apple targets, so on a Linux runner it falls
-//! back to host cargo, which lacks the target: both macOS legs of v0.1.0 failed
-//! that way. The two Apple legs therefore build natively on macOS runners, every
-//! other leg keeps `cross`, a failed leg must not cancel the rest, a manual
-//! dispatch is a dry run that creates no release, and the publish job runs only
-//! for a tag push or for an explicit `dry-run: false` dispatch on a tag ref. The
-//! cross image for the `x86_64` Linux leg has gcc but no clang, while
-//! `.cargo/config.toml` names clang as that triple's linker, so the cross step
-//! overrides the linker through the environment. Each test mutates a copy of the
-//! workflow the way a later edit could and asserts the clause meant to catch it
-//! does.
+//! `cross` has no Docker image for Apple targets, so the two macOS legs of
+//! v0.1.0 failed on a Linux runner: they now build natively, the other four keep
+//! `cross`, and the `x86_64` Linux leg overrides `.cargo/config.toml`'s clang
+//! linker, which the cross image lacks. A failed leg must not cancel the rest,
+//! and only a tag push, or an explicit `dry-run: false` dispatch on a tag ref,
+//! publishes. Each test mutates a copy of the workflow and asserts the clause
+//! meant to catch it does.
 
 use cap_std::{ambient_authority, fs_utf8::Dir};
 use rstest::rstest;
 use serde_norway::{Mapping, Value};
 
-const APPLE: [&str; 2] = ["x86_64-apple-darwin", "aarch64-apple-darwin"];
+/// Every release leg: its target, its builder and the runner it builds on.
+const MATRIX: [(&str, &str, &str); 6] = [
+    ("x86_64-unknown-linux-gnu", "cross", "ubuntu-latest"),
+    ("aarch64-unknown-linux-gnu", "cross", "ubuntu-latest"),
+    ("x86_64-pc-windows-gnu", "cross", "ubuntu-latest"),
+    ("x86_64-unknown-freebsd", "cross", "ubuntu-latest"),
+    ("x86_64-apple-darwin", "cargo", "macos-15-intel"),
+    ("aarch64-apple-darwin", "cargo", "macos-latest"),
+];
 const LINKER_VARIABLE: &str = "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER";
 const NATIVE_BUILD: &str = "cargo +stable build --release --target ${{ matrix.target }}";
 const CROSS_BUILD: &str = "cross +stable build --release --target ${{ matrix.target }}";
@@ -97,22 +101,37 @@ fn build_run(workflow: &Value, builder: &str) -> Option<String> {
     ))
 }
 
-/// Lists the reasons an Apple leg is not a native macOS build.
-fn apple_problems(workflow: &Value) -> Vec<String> {
-    APPLE
+/// Lists the reasons the matrix is not exactly the six expected legs.
+///
+/// Each target must occur once, on its expected builder and runner, so a leg
+/// dropped, duplicated or moved back to `cross` on a Linux runner (the Apple
+/// legs) is refused.
+fn matrix_problems(workflow: &Value) -> Vec<String> {
+    let found = legs(workflow);
+    let mut problems: Vec<String> = MATRIX
         .into_iter()
-        .filter(|target| {
-            let is_native = legs(workflow)
-                .into_iter()
-                .find(|leg| text(leg, "target") == Some(*target))
-                .is_some_and(|leg| {
-                    text(leg, "builder") == Some("cargo")
-                        && text(leg, "runner").is_some_and(|runner| runner.starts_with("macos-"))
+        .filter(|(target, builder, runner)| {
+            let matching: Vec<_> = found
+                .iter()
+                .filter(|leg| text(leg, "target") == Some(*target))
+                .collect();
+            let is_expected = matching.len() == 1
+                && matching.iter().all(|leg| {
+                    text(leg, "builder") == Some(*builder) && text(leg, "runner") == Some(*runner)
                 });
-            !is_native
+            !is_expected
         })
-        .map(|target| format!("{target} must build natively on a macos runner"))
-        .collect()
+        .map(|(target, builder, runner)| {
+            format!("{target} must appear once, built by {builder} on {runner}")
+        })
+        .collect();
+    if found.len() != MATRIX.len() {
+        problems.push(format!(
+            "the matrix must hold exactly {} legs",
+            MATRIX.len()
+        ));
+    }
+    problems
 }
 
 /// Lists the reasons the dispatch or publish job could publish by accident.
@@ -142,7 +161,7 @@ fn publish_problems(workflow: &Value) -> Vec<String> {
 
 /// Lists every way the workflow breaks the release shape.
 fn violations(workflow: &Value) -> Vec<String> {
-    let mut problems = apple_problems(workflow);
+    let mut problems = matrix_problems(workflow);
     problems.extend(publish_problems(workflow));
     if build_run(workflow, "cargo").as_deref() != Some(NATIVE_BUILD) {
         problems.push("the native step must run `cargo +stable build --release`".to_owned());
@@ -202,6 +221,22 @@ fn set_leg(workflow: &mut Value, target: &str, key: &str, value: &str) -> Result
     Ok(())
 }
 
+/// Applies an edit to the matrix's leg list.
+fn edit_legs(workflow: &mut Value, edit: impl FnOnce(&mut Vec<Value>)) -> Result<(), String> {
+    let legs = workflow
+        .get_mut("jobs")
+        .and_then(|jobs| {
+            jobs.get_mut("build")?
+                .get_mut("strategy")?
+                .get_mut("matrix")?
+                .get_mut("include")
+        })
+        .and_then(Value::as_sequence_mut)
+        .ok_or("no matrix include list")?;
+    edit(legs);
+    Ok(())
+}
+
 /// Sets one field of a top-level job.
 fn set_job(workflow: &mut Value, job: &str, key: &str, value: Value) -> Result<(), String> {
     workflow
@@ -242,7 +277,9 @@ fn repository_release_holds_the_shape() {
 #[case::apple_back_on_cross("x86_64-apple-darwin", "builder", "cross")]
 #[case::arm_apple_back_on_cross("aarch64-apple-darwin", "builder", "cross")]
 #[case::apple_on_a_linux_runner("aarch64-apple-darwin", "runner", "ubuntu-latest")]
-fn an_apple_leg_that_is_not_native_is_refused(
+#[case::linux_on_native_cargo("x86_64-unknown-linux-gnu", "builder", "cargo")]
+#[case::windows_on_a_mac_runner("x86_64-pc-windows-gnu", "runner", "macos-latest")]
+fn a_leg_on_the_wrong_builder_or_runner_is_refused(
     #[case] target: &str,
     #[case] key: &str,
     #[case] value: &str,
@@ -250,6 +287,33 @@ fn an_apple_leg_that_is_not_native_is_refused(
     let found = violations_after(|workflow| set_leg(workflow, target, key, value))
         .expect("the workflow should be readable");
     assert_reports(&found, target);
+}
+
+#[rstest]
+#[case::linux_x86_64("x86_64-unknown-linux-gnu")]
+#[case::linux_aarch64("aarch64-unknown-linux-gnu")]
+#[case::windows("x86_64-pc-windows-gnu")]
+#[case::freebsd("x86_64-unknown-freebsd")]
+#[case::apple("aarch64-apple-darwin")]
+fn a_dropped_or_duplicated_leg_is_refused(#[case] target: &str) {
+    let dropped = violations_after(|workflow| {
+        edit_legs(workflow, |legs| {
+            legs.retain(|leg| leg.get("target").and_then(Value::as_str) != Some(target));
+        })
+    })
+    .expect("the workflow should be readable");
+    assert_reports(&dropped, target);
+    let duplicated = violations_after(|workflow| {
+        edit_legs(workflow, |legs| {
+            let copy = legs
+                .iter()
+                .find(|leg| leg.get("target").and_then(Value::as_str) == Some(target))
+                .cloned();
+            legs.extend(copy);
+        })
+    })
+    .expect("the workflow should be readable");
+    assert_reports(&duplicated, "exactly");
 }
 
 #[rstest]
