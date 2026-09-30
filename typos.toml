@@ -30,7 +30,6 @@ extend-exclude = [
 [default]
 locale = "en-gb"
 extend-ignore-re = [
-    "\"ises\"",
     "\"seconde\"",
     "(?s)```.*?```",
     "--[a-zA-Z0-9-]*color[a-zA-Z0-9*-]*",
@@ -49,11 +48,10 @@ extend-ignore-re = [
     "\\brust-analyzer\\b",
     "\\{COLOR\\}",
     "\\{color\\}",
-    "`[^`\\n]+`",
     "`color`",
+    "`upload-artifact`",
     "`var\\.iamge_id` instead of `var\\.image_id`",
     "currentColor",
-    "types: \\[[^]]*\\blabeled\\b",
 ]
 
 [default.extend-words]
