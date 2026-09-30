@@ -5,12 +5,19 @@ This guide explains the contributor workflow for the `catnap` command.
 ## Local Workflow
 
 Use `make all` as the public entrypoint for formatting, linting, and tests.
-`make lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint.
-`make test` prefers `cargo nextest run` and falls back to `cargo test` when
-cargo-nextest is not available. Because `cargo nextest run` does not execute
-doctests, a nextest-backed `make test` run skips them; run `cargo test --doc`
-separately as a required additional step when nextest is present.
-`make coverage` uses `cargo llvm-cov` with `lld`.
+`make lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint. Whitaker
+runs with warnings denied, without the development frontend and linker flags.
+CI installs its rolling suite through the pinned shared `install-whitaker`
+action, which verifies the default installer binary and refuses a source-build
+fallback. The suite version is not overridden. `make all` keeps its gates
+sequential even when invoked with `-j`. The fake `make -j4 all` runner in
+`tests/workflow_lint/whitaker.rs` is local to the Whitaker consumer contract;
+it exercises gate order and failure without replacing the repository's real
+checks. `make test` prefers `cargo nextest run` and falls back to `cargo test`
+when cargo-nextest is not available. Because `cargo nextest run` does not
+execute doctests, a nextest-backed `make test` run skips them; run
+`cargo test --doc` separately as a required additional step when nextest is
+present. `make coverage` uses `cargo llvm-cov` with `lld`.
 
 ### Coverage publication
 

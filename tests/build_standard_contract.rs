@@ -322,12 +322,13 @@ fn every_setup_rust_step_installs_linker() -> Result<(), String> { none_of(&work
 /// command.
 ///
 /// Invariant: the continued command is one command, and lines that are not a
-/// Cargo or Whitaker command are ignored.
+/// Cargo command are ignored, including Whitaker's separate toolchain.
 #[test]
 fn a_continued_command_is_one_command() -> Result<(), String> {
     let joined = commands_from(concat!(
         "RUSTFLAGS=\"-A\" \\\n",
-        "cargo test\necho cargo test\nmake other\n"
+        "cargo test\necho cargo test\nPATH=\"/home/me/.cargo/bin:$PATH\" whitaker --all -- \
+         --all-targets\nmake other\n"
     ))?;
     if joined == vec![flags(&["-A"], false)] {
         Ok(())

@@ -24,6 +24,9 @@ const WORKFLOW_FILES: [&str; 5] = [
 ];
 const YAML_POLICY: &str = ".yamllint.yml";
 
+#[path = "workflow_lint/whitaker.rs"]
+mod whitaker;
+
 #[rstest]
 fn lint_target_invokes_the_workflow_linters(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
@@ -237,7 +240,13 @@ impl LintSandbox {
             .arg(format!("WHITAKER={}", self.tool_command("whitaker")))
             .arg(format!("YAMLLINT={yamllint}"))
             .arg(format!("ACTIONLINT={}", self.tool_command("actionlint")))
-            .env("LINT_INVOCATION_LOG", &self.invocation_log);
+            .env("LINT_INVOCATION_LOG", &self.invocation_log)
+            .env(
+                "WHITAKER_RUSTFLAGS_LOG",
+                self.temporary_directory
+                    .path()
+                    .join("whitaker-rustflags.log"),
+            );
         if let Some(tool_to_fail) = failing_tool {
             command.env("FAILING_TOOL", tool_to_fail);
         }
@@ -318,6 +327,19 @@ fn write_fake_tool(directory: &Dir, tool: &str) -> Result<(), Box<dyn Error>> {
             "  done\n",
             "  printf '\\n'\n",
             "} >> \"${LINT_INVOCATION_LOG}\"\n",
+            "if [ \"${tool_name}\" = whitaker ] && [ -n \"${WHITAKER_RUSTFLAGS_LOG:-}\" ]; then\n",
+            "  printf '%s\\n' \"${RUSTFLAGS-<unset>}\" > \"${WHITAKER_RUSTFLAGS_LOG}\"\n",
+            "fi\n",
+            "if [ -n \"${GATE_LOCK_DIR:-}\" ]; then\n",
+            "  acquired=false\n",
+            "  if mkdir \"${GATE_LOCK_DIR}/active\" 2>/dev/null; then\n",
+            "    acquired=true\n",
+            "  else\n",
+            "    printf '%s\\n' \"${tool_name}\" >> \"${GATE_LOCK_DIR}/overlap\"\n",
+            "  fi\n",
+            "  sleep 0.02\n",
+            "  if [ \"${acquired}\" = true ]; then rmdir \"${GATE_LOCK_DIR}/active\"; fi\n",
+            "fi\n",
             "if [ \"${tool_name}\" = \"${FAILING_TOOL:-}\" ]; then\n",
             "  exit 23\n",
             "fi\n",

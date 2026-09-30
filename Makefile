@@ -1,4 +1,5 @@
 .PHONY: help all clean test build release coverage lint github-actions-lint fmt check-fmt markdownlint nixie spelling test-workflow-contracts
+.NOTPARALLEL:
 
 
 TARGET ?= catnap
@@ -84,7 +85,7 @@ lint: ## Run Rust and GitHub Actions linters with warnings denied
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" RUSTFLAGS="$${RUSTFLAGS:+$$RUSTFLAGS }$(STANDARD_RUSTFLAGS)" $(CARGO) doc --no-deps
 	RUSTFLAGS="$${RUSTFLAGS:+$$RUSTFLAGS }$(STANDARD_RUSTFLAGS)" $(CARGO) clippy $(CLIPPY_FLAGS)
 	@echo "Whitaker binary: $(WHITAKER)"
-	PATH="$(USER_BIN_PATH):$(PATH)" RUSTFLAGS="$${RUSTFLAGS:+$$RUSTFLAGS }$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
+	PATH="$(USER_BIN_PATH):$(PATH)" RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
 	$(MAKE) github-actions-lint
 
 github-actions-lint: ## Validate GitHub Actions workflows

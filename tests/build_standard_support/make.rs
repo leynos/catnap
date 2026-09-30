@@ -80,7 +80,8 @@ pub fn assigned_rustflags(line: &str) -> Result<Assignment, String> {
     ))
 }
 
-/// Reads the assignment of each cargo or whitaker command `make -n` printed.
+/// Reads the assignment of each Cargo command `make -n` printed. Whitaker's
+/// separate toolchain must not inherit the development build flags.
 ///
 /// # Errors
 ///
@@ -91,7 +92,10 @@ pub fn commands_from(stdout: &str) -> Result<Vec<Assignment>, String> {
     joined
         .lines()
         .filter(|line| !line.trim_start().starts_with("echo"))
-        .filter(|line| line.contains("cargo") || line.contains("whitaker"))
+        .filter(|line| {
+            line.split_whitespace()
+                .any(|word| word.rsplit('/').next() == Some("cargo"))
+        })
         .map(assigned_rustflags)
         .collect()
 }
