@@ -162,12 +162,10 @@ request reads the cache and never writes one.
   hit 2.5 % and the coverage step hit 100 %.
 - **`expect-cache: any`.** A GitHub-hosted job accepts whichever cache backend
   the runner offers, so the input is set explicitly.
-- **`release.yml` disables it.** The release job builds with `cross` inside a
-  container that receives neither `RUSTC_WRAPPER` nor `SCCACHE_PATH`, so
-  sccache is switched off there with `use-sccache: 'false'`. The contract
-  `tests/sccache_lane.rs` holds all three clauses (`expect-cache`, the shared
-  discriminator, and the release switch) by action name and inputs, never by a
-  revision.
+- **`release.yml` disables it.** A release build never saves the cache, and
+  the `cross` legs build inside a container that receives neither
+  `RUSTC_WRAPPER` nor `SCCACHE_PATH`, so sccache is switched off there with
+  `use-sccache: 'false'`.
 
 ## Implementation Boundaries
 
