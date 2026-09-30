@@ -47,7 +47,7 @@ jobs:
       - name: Format
         run: make check-fmt
       - name: Markdown lint
-        uses: DavidAnson/markdownlint-cli2-action@63bcb6427c9446dfcbcb0c92a1d9bd4323dec58a
+        uses: DavidAnson/markdownlint-cli2-action@010983f10b79dfa8cc4ec5842416af569e6e1bbd
         with:
           globs: '**/*.md'
       - name: Setup uv
