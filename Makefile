@@ -20,7 +20,8 @@ TEST_FLAGS ?= $(CARGO_FLAGS)
 TEST_CMD := $(if $(shell $(CARGO) nextest --version 2>/dev/null),nextest run,test)
 COVERAGE_LINKER_FLAGS ?= -fuse-ld=lld
 COVERAGE_RUST_FLAGS ?= $(RUST_FLAGS) -C link-arg=$(COVERAGE_LINKER_FLAGS)
-MDLINT ?= markdownlint-cli2
+MARKDOWNLINT_CLI2_VERSION ?= 0.23.3
+MDLINT ?= bunx --silent markdownlint-cli2@$(MARKDOWNLINT_CLI2_VERSION)
 # `make fmt` and `make check-fmt` call mdtablefix directly. `--git` selects the
 # Markdown files Git tracks and `--include-untracked` adds the untracked files
 # Git does not ignore, so a new document is formatted before it is staged.

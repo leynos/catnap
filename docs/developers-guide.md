@@ -144,6 +144,20 @@ installation. Its mutation cases cover absent, late, conditional, and
 soft-failing installation steps, plus later system-package installs that could
 shadow the pinned binary.
 
+### Markdown formatting and lint
+
+`make fmt` and `make check-fmt` use `mdtablefix` with Git-aware selection.
+Tracked Markdown and untracked files that Git does not ignore are included, so
+new documentation is formatted before staging; ignored generated files such as
+those under `target/` stay out of the selection. CI installs `mdtablefix` 0.6.0
+through the pinned shared action.
+
+The Makefile pins `markdownlint-cli2` to the version bundled by the CI action.
+Local `make fmt` and `make markdownlint` invoke that version through `bunx`, so
+the formatter and linter use the same rule implementation as CI. Install Bun for
+`make fmt` and `make markdownlint`, and install `mdtablefix` for `make fmt` and
+`make check-fmt`.
+
 ### Cold-cache allowance for the trybuild tests
 
 `.config/nextest.toml` keeps the 180 s per-test allowance that the coverage
