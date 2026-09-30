@@ -5,6 +5,14 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: >-
+          Build every matrix leg and upload the artefacts, but create no
+          release. Set to false on a tag ref to publish that tag's release.
+        type: boolean
+        default: true
 
 env:
   BIN_NAME: catnap
@@ -12,34 +20,49 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
+      # A failed leg must not cancel the others: v0.1.0's macOS failures hid
+      # whether the Linux, Windows and FreeBSD legs build at all.
+      fail-fast: false
       matrix:
         include:
           - os: linux
             arch: x86_64
             target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            builder: cross
             ext: ""
           - os: linux
             arch: aarch64
             target: aarch64-unknown-linux-gnu
+            runner: ubuntu-latest
+            builder: cross
             ext: ""
           - os: windows
             arch: x86_64
             target: x86_64-pc-windows-gnu
+            runner: ubuntu-latest
+            builder: cross
             ext: ".exe"
           - os: macos
             arch: x86_64
             target: x86_64-apple-darwin
+            runner: macos-15-intel
+            builder: cargo
             ext: ""
           - os: macos
             arch: aarch64
             target: aarch64-apple-darwin
+            runner: macos-latest
+            builder: cargo
             ext: ""
           - os: freebsd
             arch: x86_64
             target: x86_64-unknown-freebsd
+            runner: ubuntu-latest
+            builder: cross
             ext: ""
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -48,17 +71,20 @@ jobs:
       - uses: leynos/shared-actions/.github/actions/setup-rust@9a27950942334d69ff79005b3a8db23bf151f43f
         with:
           expect-cache: any
-          # cross builds inside a container that receives neither RUSTC_WRAPPER nor
-          # SCCACHE_PATH, so sccache would be installed, restored and started for nothing.
+          # A release build never saves sccache, and cross builds inside a container
+          # that receives neither RUSTC_WRAPPER nor SCCACHE_PATH, so sccache would be
+          # installed, restored and started for nothing.
           use-sccache: 'false'
           toolchain: stable
       - name: Cache cross binary
+        if: matrix.builder == 'cross'
         id: cache-cross
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.cargo/bin/cross
           key: cross-${{ env.CROSS_REVISION }}
       - name: Install cross
+        if: matrix.builder == 'cross'
         env:
           # Clear repository build flags from .cargo/config.toml (the mold
           # linker) before installing cross from CROSS_REVISION.
@@ -77,7 +103,11 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ matrix.target }}-
-      - name: Build release binary
+      - name: Add native target
+        if: matrix.builder == 'cargo'
+        run: rustup target add "${{ matrix.target }}"
+      - name: Build release binary (cross)
+        if: matrix.builder == 'cross'
         # Use +stable to override rust-toolchain.toml's nightly pin, so release
         # builds use stable. Stable Cargo reads .cargo/config.toml too, which
         # is why that file may select no codegen backend (see "Cranelift
@@ -86,14 +116,28 @@ jobs:
           # Build release artefacts without repository-local linker flags,
           # including mold rustflags from .cargo/config.toml.
           RUSTFLAGS: ""
+          # .cargo/config.toml sets `linker = "clang"` for this triple (the
+          # development build links with mold through clang), but the cross
+          # image has gcc and no clang. An environment value beats the config
+          # file, and cross forwards CARGO_* variables into the container.
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: cc
         run: cross +stable build --release --target ${{ matrix.target }}
+      - name: Build release binary (native)
+        if: matrix.builder == 'cargo'
+        # cross has no Docker image for Apple targets and falls back to host
+        # cargo, which lacks the target on a Linux runner, so the macOS legs
+        # build natively on macOS runners (see "Release builds" in
+        # docs/developers-guide.md).
+        env:
+          RUSTFLAGS: ""
+        run: cargo +stable build --release --target ${{ matrix.target }}
       - name: Prepare artefact
         run: |
           mkdir -p artifacts/${{ matrix.os }}-${{ matrix.arch }}
           cp target/${{ matrix.target }}/release/${{ env.BIN_NAME }}${{ matrix.ext }} \
             artifacts/${{ matrix.os }}-${{ matrix.arch }}/${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }}
           cd artifacts/${{ matrix.os }}-${{ matrix.arch }}
-          sha256sum ${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }} > \
+          shasum -a 256 ${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }} > \
             ${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }}.sha256
       - name: Upload release artefact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -103,6 +147,12 @@ jobs:
 
   release:
     needs: build
+    # A dispatch is a dry run unless it names a tag ref and sets dry-run to
+    # false; a branch dispatch can never publish.
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' &&
+      inputs.dry-run == false && startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
