@@ -35,6 +35,10 @@ omits build output such as `target/`.
 │   ├── lib.rs
 │   ├── main.rs
 │   └── runner.rs
+├── scripts/
+│   ├── build-tools-common.sh
+│   ├── check-build-tools.sh
+│   └── install-build-tools.sh
 ├── tests/
 │   ├── behaviour.rs
 │   ├── e2e.rs
@@ -44,6 +48,10 @@ omits build output such as `target/`.
 │   ├── ui.rs
 │   └── ui/
 │       └── ...
+├── tools/
+│   └── mold/
+│       ├── SHA256SUMS
+│       └── VERSION
 ├── AGENTS.md
 ├── Cargo.toml
 ├── LICENSE
@@ -113,6 +121,9 @@ omits build output such as `target/`.
 - `LICENSE`: Records the project licence text.
 - `Makefile`: Provides the public build, lint, test, coverage, and
   documentation validation commands.
+- `scripts/`: Holds the pinned build-tool installer and checker; their shared
+  helpers are used only by those two scripts.
+- `tools/mold/`: Records the local mold release version and archive checksums.
 - `README.md`: Introduces the project and gives the shortest useful
   getting-started path.
 - `clippy.toml`: Configures Clippy lint behaviour that is not expressed

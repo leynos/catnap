@@ -69,11 +69,20 @@ The generated `Makefile` exposes these public targets:
   execute doctests, a nextest-backed `make test` run skips them; run
   `cargo test --doc` separately as a required additional step when nextest is
   present.
+- `make install-build-tools` installs the pinned nightly with its requested
+  components and the checksum-verified `mold` release on Linux.
+- `make check-build-tools` verifies the pinned nightly and its components,
+  `clang`, and `mold` before development, test, lint, and typecheck builds.
+- `make check-rust-toolchain` verifies the pinned channel and components before
+  formatting commands.
+- `make check-coverage-tools` verifies the pinned toolchain, `clang`, and `lld`
+  before coverage generation.
 - `make build` builds the debug target.
 - `make release` builds the release target.
 - `make coverage` writes `lcov.info` using `cargo llvm-cov` and `lld`.
 - `make markdownlint` checks Markdown files.
 - `make nixie` validates Mermaid diagrams.
 
-Install `clang`, `lld`, and `mold` before running the full generated workflow
-locally on Linux.
+On Linux, install `clang` and `lld` with the operating system's package
+manager, then run `make install-build-tools` to install the pinned nightly and
+`mold`.
