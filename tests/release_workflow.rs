@@ -13,6 +13,9 @@ use cap_std::{ambient_authority, fs_utf8::Dir};
 use rstest::rstest;
 use serde_norway::{Mapping, Value};
 
+#[path = "release_workflow_legs/matrix_cases.rs"]
+mod matrix_cases;
+
 /// Every release leg: its target, its builder and the runner it builds on.
 const MATRIX: [(&str, &str, &str); 6] = [
     ("x86_64-unknown-linux-gnu", "cross", "ubuntu-latest"),
@@ -200,43 +203,6 @@ fn assert_reports(found: &[String], fragment: &str) {
     );
 }
 
-/// Sets one field of the matrix leg for `target`.
-fn set_leg(workflow: &mut Value, target: &str, key: &str, value: &str) -> Result<(), String> {
-    workflow
-        .get_mut("jobs")
-        .and_then(|jobs| {
-            jobs.get_mut("build")?
-                .get_mut("strategy")?
-                .get_mut("matrix")?
-                .get_mut("include")
-        })
-        .and_then(Value::as_sequence_mut)
-        .and_then(|legs| {
-            legs.iter_mut()
-                .find(|leg| leg.get("target").and_then(Value::as_str) == Some(target))
-        })
-        .and_then(Value::as_mapping_mut)
-        .ok_or_else(|| format!("no matrix leg for {target}"))?
-        .insert(key.into(), value.into());
-    Ok(())
-}
-
-/// Applies an edit to the matrix's leg list.
-fn edit_legs(workflow: &mut Value, edit: impl FnOnce(&mut Vec<Value>)) -> Result<(), String> {
-    let legs = workflow
-        .get_mut("jobs")
-        .and_then(|jobs| {
-            jobs.get_mut("build")?
-                .get_mut("strategy")?
-                .get_mut("matrix")?
-                .get_mut("include")
-        })
-        .and_then(Value::as_sequence_mut)
-        .ok_or("no matrix include list")?;
-    edit(legs);
-    Ok(())
-}
-
 /// Sets one field of a top-level job.
 fn set_job(workflow: &mut Value, job: &str, key: &str, value: Value) -> Result<(), String> {
     workflow
@@ -271,49 +237,6 @@ fn set_linker(workflow: &mut Value, linker: Option<&str>) -> Result<(), String> 
 fn repository_release_holds_the_shape() {
     let found = violations_after(|_| Ok(())).expect("the workflow should be readable");
     assert!(found.is_empty(), "expected no violations, got {found:?}");
-}
-
-#[rstest]
-#[case::apple_back_on_cross("x86_64-apple-darwin", "builder", "cross")]
-#[case::arm_apple_back_on_cross("aarch64-apple-darwin", "builder", "cross")]
-#[case::apple_on_a_linux_runner("aarch64-apple-darwin", "runner", "ubuntu-latest")]
-#[case::linux_on_native_cargo("x86_64-unknown-linux-gnu", "builder", "cargo")]
-#[case::windows_on_a_mac_runner("x86_64-pc-windows-gnu", "runner", "macos-latest")]
-fn a_leg_on_the_wrong_builder_or_runner_is_refused(
-    #[case] target: &str,
-    #[case] key: &str,
-    #[case] value: &str,
-) {
-    let found = violations_after(|workflow| set_leg(workflow, target, key, value))
-        .expect("the workflow should be readable");
-    assert_reports(&found, target);
-}
-
-#[rstest]
-#[case::linux_x86_64("x86_64-unknown-linux-gnu")]
-#[case::linux_aarch64("aarch64-unknown-linux-gnu")]
-#[case::windows("x86_64-pc-windows-gnu")]
-#[case::freebsd("x86_64-unknown-freebsd")]
-#[case::apple("aarch64-apple-darwin")]
-fn a_dropped_or_duplicated_leg_is_refused(#[case] target: &str) {
-    let dropped = violations_after(|workflow| {
-        edit_legs(workflow, |legs| {
-            legs.retain(|leg| leg.get("target").and_then(Value::as_str) != Some(target));
-        })
-    })
-    .expect("the workflow should be readable");
-    assert_reports(&dropped, target);
-    let duplicated = violations_after(|workflow| {
-        edit_legs(workflow, |legs| {
-            let copy = legs
-                .iter()
-                .find(|leg| leg.get("target").and_then(Value::as_str) == Some(target))
-                .cloned();
-            legs.extend(copy);
-        })
-    })
-    .expect("the workflow should be readable");
-    assert_reports(&duplicated, "exactly");
 }
 
 #[rstest]
