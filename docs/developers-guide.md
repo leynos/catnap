@@ -112,6 +112,37 @@ stable refuses. The test therefore needs the stable toolchain installed
 (`rustup toolchain install stable --profile minimal`); CI installs it before
 the tests run. Revisit if the release moves to the pinned nightly.
 
+### Release builds
+
+`release.yml` runs on a `v*.*.*` tag push and on `workflow_dispatch`, and
+builds six targets in one matrix, each leg with a `builder`.
+
+- **Native macOS.** `x86_64-apple-darwin` builds on `macos-15-intel` and
+  `aarch64-apple-darwin` on `macos-latest`, with
+  `cargo +stable build --release --target <target>`. `cross` has no Docker
+  image for Apple targets; on a Linux runner it falls back to host cargo, which
+  lacks the target and stops with E0463. That, and not only the Cranelift key
+  above, is why the v0.1.0 macOS legs failed.
+- **Cross for the rest.** The Linux (`x86_64`, `aarch64`), Windows GNU and
+  FreeBSD legs run `cross +stable build --release --target <target>` on
+  `ubuntu-latest`.
+- **Linker for the x86_64 Linux leg.** `.cargo/config.toml` names `clang` as
+  that triple's linker for the development build (with mold). The `cross` image
+  has gcc and no clang, so the cross step sets
+  `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=cc`. An environment value beats
+  the configuration file and `cross` forwards `CARGO_*` variables into its
+  container. The development configuration is untouched.
+- **No cancellation.** `fail-fast` is off, so one failing leg cannot hide
+  whether the others build.
+- **Dry run.** A `workflow_dispatch` builds every leg and uploads the
+  artefacts, then stops: the `release` job runs only for a tag push, or for a
+  dispatch on a tag ref that sets `dry-run` to `false`. A branch dispatch
+  therefore never publishes. Run the dispatch on a branch before tagging; it is
+  the proof that every leg builds.
+
+`tests/release_workflow.rs` holds these clauses: each is proved by a mutation
+of a copy of the real workflow that the test must refuse.
+
 ### Compiler cache (sccache)
 
 The shared `setup-rust` action gives sccache a local-disk directory under
@@ -131,9 +162,10 @@ request reads the cache and never writes one.
   hit 2.5 % and the coverage step hit 100 %.
 - **`expect-cache: any`.** A GitHub-hosted job accepts whichever cache backend
   the runner offers, so the input is set explicitly.
-- **`release.yml` disables it.** The release job builds with `cross` inside a
-  container that receives neither `RUSTC_WRAPPER` nor `SCCACHE_PATH`, so
-  sccache is switched off there with `use-sccache: 'false'`.
+- **`release.yml` disables it.** A release build never saves the cache, and
+  the `cross` legs build inside a container that receives neither
+  `RUSTC_WRAPPER` nor `SCCACHE_PATH`, so sccache is switched off there with
+  `use-sccache: 'false'`.
 
 ## Implementation Boundaries
 
