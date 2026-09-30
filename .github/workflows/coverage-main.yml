@@ -1,3 +1,4 @@
+---
 name: Coverage (main)
 
 # Main owns both persistent coverage outputs: the CodeScene upload and the
