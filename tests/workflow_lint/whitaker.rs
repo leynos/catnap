@@ -252,6 +252,7 @@ fn all_gates_stay_sequential_under_parallel_make(
         "actionlint",
         "cargo\ttest",
         "spelling\tgate",
+        "uv\ttool\trun\t--python\t3.13",
     ];
     let positions: Vec<usize> = expected
         .iter()
@@ -293,6 +294,7 @@ fn run_fake_all(
 ) -> Result<Output, Box<dyn Error>> {
     write_fake_tool(&sandbox.directory, "mdtablefix")?;
     write_fake_tool(&sandbox.directory, "spelling")?;
+    write_fake_tool(&sandbox.directory, "uv")?;
     sandbox.directory.create_dir("gate-lock")?;
     let mut command = Command::new("make");
     command
@@ -307,6 +309,7 @@ fn run_fake_all(
             "TYPOS_CONFIG_BUILDER={}",
             sandbox.tool_command("spelling")
         ))
+        .arg(format!("UV={}", sandbox.tool_command("uv")))
         .env("LINT_INVOCATION_LOG", &sandbox.invocation_log)
         .env(
             "GATE_LOCK_DIR",

@@ -24,6 +24,8 @@ const WORKFLOW_FILES: [&str; 5] = [
 ];
 const YAML_POLICY: &str = ".yamllint.yml";
 
+#[path = "workflow_lint/codescene_token.rs"]
+mod codescene_token;
 #[path = "workflow_lint/whitaker.rs"]
 mod whitaker;
 
