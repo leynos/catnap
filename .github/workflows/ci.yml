@@ -117,7 +117,7 @@ jobs:
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest
       - name: Install Whitaker
-        uses: leynos/shared-actions/.github/actions/install-whitaker@6dea5677a84fec60ca51b07202570e3af12ffdb4
+        uses: leynos/shared-actions/.github/actions/install-whitaker@abf0dcf2686de1eaf79b6dc9a16662b631bed149
       - name: Lint
         run: /usr/bin/make ACTIONLINT="$GITHUB_WORKSPACE/actionlint" lint
       - name: Log coverage linker configuration
