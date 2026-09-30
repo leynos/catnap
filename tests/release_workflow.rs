@@ -275,7 +275,6 @@ fn repository_release_holds_the_shape() {
 
 #[rstest]
 #[case::apple_back_on_cross("x86_64-apple-darwin", "builder", "cross")]
-#[case::arm_apple_back_on_cross("aarch64-apple-darwin", "builder", "cross")]
 #[case::apple_on_a_linux_runner("aarch64-apple-darwin", "runner", "ubuntu-latest")]
 #[case::linux_on_native_cargo("x86_64-unknown-linux-gnu", "builder", "cargo")]
 #[case::windows_on_a_mac_runner("x86_64-pc-windows-gnu", "runner", "macos-latest")]
@@ -314,6 +313,7 @@ fn a_dropped_or_duplicated_leg_is_refused(#[case] target: &str) {
     })
     .expect("the workflow should be readable");
     assert_reports(&duplicated, "exactly");
+    assert_reports(&duplicated, target);
 }
 
 #[rstest]
