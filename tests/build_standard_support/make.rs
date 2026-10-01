@@ -4,7 +4,7 @@
 
 use std::process::Command;
 
-use super::config::{Flags, LINKER_FLAG, Pin, Problems, THREADS_FLAG};
+use super::config::{CODEGEN_BACKEND_FLAG, Flags, LINKER_FLAG, Pin, Problems, THREADS_FLAG};
 
 /// Makefile targets that build for development. A command in one either assigns
 /// `RUSTFLAGS` with the standard flags or assigns none and so takes the
@@ -177,6 +177,7 @@ fn held_out_command_problems(target: &str, assignment: &Assignment) -> Problems 
     };
     let named = [
         (flags.names_threads(), THREADS_FLAG),
+        (flags.names_cranelift(), CODEGEN_BACKEND_FLAG),
         (flags.names_linker(), LINKER_FLAG),
     ];
     named

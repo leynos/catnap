@@ -6,7 +6,7 @@
 //! The workflows are read as text, one step at a time. Release workflows are not
 //! listed: a release stays on the platform linker and never uses mold.
 
-use super::config::{Problems, THREADS_FLAG};
+use super::config::{CODEGEN_BACKEND_FLAG, Problems, THREADS_FLAG};
 
 /// The workflows that set up Rust and build under the standard, as name and text.
 /// The list is this repository's own, so a workflow that stops setting up Rust
@@ -85,7 +85,9 @@ impl Step<'_> {
                 self.location()
             ));
         };
-        let names_a_standard_flag = value.contains(THREADS_FLAG) || value.contains("mold");
+        let names_a_standard_flag = value.contains(THREADS_FLAG)
+            || value.contains(CODEGEN_BACKEND_FLAG)
+            || value.contains("mold");
         names_a_standard_flag.then(|| {
             format!(
                 "{}: a coverage step assigns a standard flag: {value}",

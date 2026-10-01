@@ -39,10 +39,41 @@ fn installer_passes_the_pinned_toolchain_components_to_rustup(
                 "--profile\n",
                 "minimal\n",
                 "--component\n",
-                "clippy,llvm-tools-preview,rustfmt\n"
+                "clippy,llvm-tools-preview,rustc-codegen-cranelift-preview,rustfmt\n"
             ),
             PINNED_TOOLCHAIN
         )
+    );
+}
+
+#[rstest]
+fn make_installs_only_the_pinned_cranelift_component(
+    build_tools_sandbox: Result<BuildToolsSandbox, Box<dyn Error>>,
+) {
+    let sandbox = build_tools_sandbox.expect("create build-tools sandbox");
+    sandbox
+        .write_recording_rustup()
+        .expect("write recording rustup");
+
+    let output = sandbox
+        .run_make(&["install-cranelift"])
+        .expect("run make install-cranelift");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(
+        output.status.success(),
+        "component installation failed: {stderr}"
+    );
+    assert_eq!(
+        sandbox.rustup_invocations().expect("read rustup log"),
+        format!(
+            "component\nadd\nrustc-codegen-cranelift-preview\n--toolchain\n{PINNED_TOOLCHAIN}\n"
+        )
+    );
+    assert_eq!(
+        sandbox.install_order().expect("read install order"),
+        "rustup\n",
+        "the CI component route should not download or replace mold"
     );
 }
 

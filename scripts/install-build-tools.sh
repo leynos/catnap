@@ -11,6 +11,7 @@ MOLD_RELEASE_BASE_URL=${MOLD_RELEASE_BASE_URL:-https://github.com/rui314/mold/re
 CURL_CONNECT_TIMEOUT=${CURL_CONNECT_TIMEOUT:-15}
 CURL_MIN_BYTES_PER_SECOND=${CURL_MIN_BYTES_PER_SECOND:-1024}
 CURL_STALL_SECONDS=${CURL_STALL_SECONDS:-60}
+CRANELIFT_COMPONENT=rustc-codegen-cranelift-preview
 
 BUILD_TOOLS_WORKDIR=
 
@@ -82,8 +83,28 @@ install_toolchain() {
     fail "failed to install toolchain $toolchain; retry with: make install-build-tools"
 }
 
+install_cranelift_component() {
+  local toolchain
+  if ! command -v rustup >/dev/null 2>&1; then
+    fail 'rustup not found on PATH; install it from https://rustup.rs'
+  fi
+  toolchain=$(pinned_toolchain) || return 1
+  note "installing $CRANELIFT_COMPONENT for $toolchain"
+  rustup component add "$CRANELIFT_COMPONENT" --toolchain "$toolchain" ||
+    fail "failed to install $CRANELIFT_COMPONENT for $toolchain; retry with: make install-cranelift"
+}
+
 main() {
-  local mold_pin toolchain_pin
+  local mode=${1:-} mold_pin toolchain_pin
+  case "$mode" in
+    --cranelift-only)
+      [ "$#" -eq 1 ] || fail "usage: $0 [--cranelift-only]"
+      install_cranelift_component
+      return
+      ;;
+    '') [ "$#" -eq 0 ] || fail "usage: $0 [--cranelift-only]" ;;
+    *) fail "usage: $0 [--cranelift-only]" ;;
+  esac
   mold_pin=$(mold_version) || return 1
   toolchain_pin=$(pinned_toolchain) || return 1
   install_mold "$mold_pin"

@@ -172,6 +172,15 @@ fn violations(workflow: &Value) -> Vec<String> {
     if build_run(workflow, "cross").as_deref() != Some(CROSS_BUILD) {
         problems.push("the cross step must run `cross +stable build --release`".to_owned());
     }
+    for builder in ["cross", "cargo"] {
+        let rustflags = build_step(workflow, builder)
+            .and_then(|step| step.get("env")?.get("RUSTFLAGS")?.as_str());
+        if rustflags != Some("") {
+            problems.push(format!(
+                "the {builder} release step must assign empty RUSTFLAGS"
+            ));
+        }
+    }
     let linker = build_step(workflow, "cross")
         .and_then(|step| step.get("env")?.get(LINKER_VARIABLE)?.as_str());
     if linker != Some("cc") {
@@ -229,6 +238,22 @@ fn set_linker(workflow: &mut Value, linker: Option<&str>) -> Result<(), String> 
     match linker {
         Some(value) => env.insert(LINKER_VARIABLE.into(), value.into()),
         None => env.remove(LINKER_VARIABLE),
+    };
+    Ok(())
+}
+
+/// Sets, or with `None` removes, the development flags override for a builder.
+fn set_build_rustflags(
+    workflow: &mut Value,
+    builder: &str,
+    rustflags: Option<&str>,
+) -> Result<(), String> {
+    let env = build_step_mut(workflow, builder)
+        .and_then(|step| step.get_mut("env")?.as_mapping_mut())
+        .ok_or_else(|| format!("no {builder} build env"))?;
+    match rustflags {
+        Some(value) => env.insert("RUSTFLAGS".into(), value.into()),
+        None => env.remove("RUSTFLAGS"),
     };
     Ok(())
 }
@@ -320,4 +345,18 @@ fn a_cross_linux_leg_linked_by_a_missing_clang_is_refused(#[case] linker: Option
     let found = violations_after(|workflow| set_linker(workflow, linker))
         .expect("the workflow should be readable");
     assert_reports(&found, LINKER_VARIABLE);
+}
+
+#[rstest]
+#[case::cross_no_override("cross", None)]
+#[case::cross_keeps_dev_flags("cross", Some("-Zcodegen-backend=cranelift"))]
+#[case::native_no_override("cargo", None)]
+#[case::native_keeps_dev_flags("cargo", Some("-Zcodegen-backend=cranelift"))]
+fn a_stable_release_step_must_clear_development_flags(
+    #[case] builder: &str,
+    #[case] rustflags: Option<&str>,
+) {
+    let found = violations_after(|workflow| set_build_rustflags(workflow, builder, rustflags))
+        .expect("the workflow should be readable");
+    assert_reports(&found, builder);
 }

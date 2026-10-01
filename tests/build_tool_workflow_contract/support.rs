@@ -6,6 +6,7 @@ use serde_norway::Value;
 const SETUP_RUST: &str =
     "leynos/shared-actions/.github/actions/setup-rust@9a27950942334d69ff79005b3a8db23bf151f43f";
 const GENERATE_COVERAGE: &str = "leynos/shared-actions/.github/actions/generate-coverage@";
+const INSTALL_CRANELIFT: &str = "make install-cranelift";
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RunnerPlatform {
     Linux,
@@ -85,8 +86,57 @@ fn job_violations(job: &Value, source: &str, job_name: &str) -> Result<Vec<Strin
         .filter_map(|(index, step)| is_rust_suite_step(step).then_some(index))
     {
         violations.extend(suite_setup_violations(steps, suite_index, source, job_name));
+        if steps
+            .get(suite_index)
+            .is_some_and(is_development_suite_step)
+        {
+            violations.extend(cranelift_setup_violations(
+                steps,
+                suite_index,
+                source,
+                job_name,
+            ));
+        }
     }
     Ok(violations)
+}
+
+fn cranelift_setup_violations(
+    steps: &[Value],
+    suite_index: usize,
+    source: &str,
+    job_name: &str,
+) -> Vec<String> {
+    let setup = steps
+        .iter()
+        .enumerate()
+        .take(suite_index)
+        .find(|(_, step)| is_cranelift_setup(step));
+    let Some((_, setup_step)) = setup else {
+        return vec![format!(
+            "{source}: Linux Rust development suite job {job_name} has no earlier Cranelift setup"
+        )];
+    };
+
+    if has_field(setup_step, "if") || has_field(setup_step, "continue-on-error") {
+        return vec![format!(
+            "{source}: Linux Rust development suite job {job_name} has a conditional or ignored \
+             Cranelift setup"
+        )];
+    }
+    Vec::new()
+}
+
+fn is_cranelift_setup(step: &Value) -> bool {
+    step.get("run")
+        .and_then(Value::as_str)
+        .is_some_and(|run| run.trim() == INSTALL_CRANELIFT)
+}
+
+fn is_development_suite_step(step: &Value) -> bool {
+    step.get("run")
+        .and_then(Value::as_str)
+        .is_some_and(|run| run_invokes_rust_suite(run) && !run.contains("llvm-cov"))
 }
 
 fn suite_setup_violations(

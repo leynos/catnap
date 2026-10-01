@@ -1,14 +1,14 @@
 //! Contract tests for the Rust build standard.
 //!
-//! The standard makes the parallel `rustc` frontend the default for every
-//! development build on a nightly pin, and mold the default linker on Linux.
-//! Cargo reads both from `.cargo/config.toml`, but it applies a single
+//! The standard makes the parallel `rustc` frontend and Cranelift the defaults
+//! for every development build on a nightly pin, and mold the default linker
+//! on Linux. Cargo reads these from `.cargo/config.toml`, but it applies a single
 //! `rustflags` source rather than merging them, and an assigned `RUSTFLAGS`
 //! replaces every source. So the flags must be repeated in each configuration
 //! source, restated wherever the Makefile assigns `RUSTFLAGS` for a development
 //! target, and kept out of the coverage and release recipes, which measure or
 //! ship and so stay on the default flags. A stable pin takes mold alone,
-//! because `-Zthreads` is a nightly flag.
+//! because the frontend and Cranelift flags require nightly.
 //!
 //! The Makefile clauses run `make -n` and read the commands it would run,
 //! rather than the Makefile's text, so a flag lost through a variable or a
@@ -17,7 +17,8 @@
 //! listed targets and workflows are this repository's own: one that stops being
 //! defined fails the contract, so the check cannot quietly stop covering it.
 //! Each CI workflow that sets up Rust passes `install-mold: 'true'`, so the
-//! Linux jobs have the linker. The readers are driven against fixtures first,
+//! Linux jobs have the linker. A separate Cranelift contract checks the backend
+//! flag and pinned component. The readers are driven against fixtures first,
 //! because a rule exercised only over this repository's own compliant files
 //! would pass whether or not it detects anything.
 
@@ -281,6 +282,14 @@ const COVERAGE_WITH_LINKER: &str = concat!(
      0123456789abcdef0123456789abcdef01234567\n",
     "        env:\n          RUSTFLAGS: -Clink-arg=-fuse-ld=mold\n"
 );
+/// A coverage step that takes Cranelift.
+const COVERAGE_WITH_CRANELIFT: &str = concat!(
+    "    steps:\n      - name: Cover\n",
+    "        uses: \
+     org/shared-actions/.github/actions/generate-coverage@\
+     0123456789abcdef0123456789abcdef01234567\n",
+    "        env:\n          RUSTFLAGS: -Zcodegen-backend=cranelift\n"
+);
 /// A coverage step whose assignment belongs to the next step.
 const COVERAGE_BORROWING_A_SIBLING: &str = concat!(
     "    steps:\n      - name: Cover\n",
@@ -292,13 +301,14 @@ const COVERAGE_BORROWING_A_SIBLING: &str = concat!(
 
 /// Scenario: coverage steps with and without an explicit assignment.
 ///
-/// Invariant: the step assigns `RUSTFLAGS` itself and names neither standard
+/// Invariant: the step assigns `RUSTFLAGS` itself and names no development
 /// flag; a sibling step's assignment does not count.
 #[rstest]
 #[case::assigned(COVERAGE_OK, 0)]
 #[case::unassigned(COVERAGE_UNASSIGNED, 1)]
 #[case::with_the_frontend_flag(COVERAGE_WITH_THREADS, 1)]
 #[case::with_the_linker(COVERAGE_WITH_LINKER, 1)]
+#[case::with_cranelift(COVERAGE_WITH_CRANELIFT, 1)]
 #[case::assignment_on_a_sibling_step(COVERAGE_BORROWING_A_SIBLING, 1)]
 fn the_coverage_reader_wants_an_explicit_assignment(
     #[case] workflow: &str,

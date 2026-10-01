@@ -1,6 +1,6 @@
 .PHONY: help all clean test build release coverage lint github-actions-lint fmt check-fmt \
 	markdownlint nixie spelling test-workflow-contracts install-build-tools \
-	check-build-tools check-rust-toolchain check-coverage-tools
+	install-cranelift check-build-tools check-rust-toolchain check-coverage-tools
 .NOTPARALLEL:
 
 
@@ -65,16 +65,19 @@ test-workflow-contracts: ## Check the CV-005 CodeScene workflow contracts
 	$(CV005_CONTRACTS) check --repository .
 
 # The development build standard (concordat rule `rust-build-defaults`):
-# the parallel rustc frontend and, on Linux, the mold linker. An assigned
+# Cranelift and the parallel rustc frontend, plus mold on Linux. An assigned
 # RUSTFLAGS replaces every `rustflags` table in .cargo/config.toml, so each
 # recipe that sets it composes these onto any inherited value (CI's
 # setup-rust exports one), except coverage, which stays on LLVM and the
 # platform linker.
 BUILD_HOST_OS := $(shell uname -s)
-STANDARD_RUSTFLAGS := -Zthreads=8$(if $(filter Linux,$(BUILD_HOST_OS)), -Clink-arg=-fuse-ld=mold)
+STANDARD_RUSTFLAGS := -Zthreads=8 -Zcodegen-backend=cranelift$(if $(filter Linux,$(BUILD_HOST_OS)), -Clink-arg=-fuse-ld=mold)
 
 install-build-tools: ## Install the pinned mold linker and nightly toolchain
 	@scripts/install-build-tools.sh
+
+install-cranelift: ## Install the Cranelift component for the pinned nightly
+	@scripts/install-build-tools.sh --cranelift-only
 
 check-build-tools: ## Check the development build prerequisites
 	@scripts/check-build-tools.sh

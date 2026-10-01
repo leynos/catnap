@@ -13,13 +13,13 @@
 # without them on purpose. A direct `cargo build --release` keeps these flags
 # unless `RUSTFLAGS` is assigned.
 #
-# No codegen backend is selected here, and none may be while the release
-# workflow builds with `cross +stable build --release`: stable Cargo refuses a
-# `[profile.dev] codegen-backend` key ("config profile `dev` is not valid") and
-# stops reading this file, which broke the v0.1.0 release. See "Cranelift" in
-# docs/developers-guide.md; tests/build_backend_contract.rs holds the rule.
+# Development uses Cranelift through rustc's nightly flag rather than Cargo's
+# `[profile.dev] codegen-backend` key. The stable release workflow assigns an
+# empty `RUSTFLAGS`, which removes every nightly flag before stable rustc runs.
+# `rust-toolchain.toml` pins the component. See the accepted decision in
+# docs/adr/0001-cranelift-development-backend.md.
 [build]
-rustflags = ["-Zthreads=8"]
+rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift"]
 
 # mold ships for Linux only, so the linker flag lives in a Linux-only table,
 # with clang driving the link. Other targets, macOS and Windows included, fall
@@ -31,4 +31,4 @@ linker = "clang"
 # matches every Linux target, not one architecture; the triple tables above keep only the
 # linker. Other targets, macOS and Windows included, fall through to `[build] rustflags`.
 [target.'cfg(target_os = "linux")']
-rustflags = ["-Zthreads=8", "-Clink-arg=-fuse-ld=mold"]
+rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift", "-Clink-arg=-fuse-ld=mold"]

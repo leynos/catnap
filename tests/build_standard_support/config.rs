@@ -10,6 +10,8 @@ pub const TOOLCHAIN: &str =
 /// The parallel-frontend flag every `rustflags` source carries on a nightly
 /// pin.
 pub const THREADS_FLAG: &str = "-Zthreads=8";
+/// The nightly backend flag used by development builds.
+pub const CODEGEN_BACKEND_FLAG: &str = "-Zcodegen-backend=cranelift";
 /// The linker flag the Linux source adds, normalized to one token.
 pub const LINKER_FLAG: &str = "-Clink-arg=-fuse-ld=mold";
 /// The one Cargo target table that covers every Linux architecture.
@@ -110,6 +112,9 @@ impl Flags {
 
     /// Returns whether the list names the linker flag.
     pub fn names_linker(&self) -> bool { self.names(LINKER_FLAG) }
+
+    /// Returns whether the list names the development codegen backend.
+    pub fn names_cranelift(&self) -> bool { self.names(CODEGEN_BACKEND_FLAG) }
 
     /// Returns the list without the linker flag, which is the one that may
     /// differ.

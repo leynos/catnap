@@ -38,6 +38,10 @@ fn every_reachable_linux_rust_suite_has_pinned_mold_setup() {
 #[case::conditional_installer(Mutation::ConditionalSetup, "suite")]
 #[case::ignored_installer(Mutation::IgnoredSetup, "suite")]
 #[case::unpinned_distro_mold(Mutation::DistroMold, "suite")]
+#[case::missing_cranelift_installer(Mutation::MissingCraneliftSetup, "Cranelift")]
+#[case::late_cranelift_installer(Mutation::CraneliftSetupAfterSuite, "Cranelift")]
+#[case::conditional_cranelift_installer(Mutation::ConditionalCraneliftSetup, "Cranelift")]
+#[case::ignored_cranelift_installer(Mutation::IgnoredCraneliftSetup, "Cranelift")]
 fn suite_mutations_are_rejected(#[case] mutation: Mutation, #[case] expected_job: &str) {
     let workflow = mutate_valid_workflow(mutation).expect("mutate valid workflow");
     let errors = workflow_violations(&workflow, "mutation.yml").expect("classify fixture runner");

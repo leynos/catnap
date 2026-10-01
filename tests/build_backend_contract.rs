@@ -1,16 +1,15 @@
-//! Holds `.cargo/config.toml` free of a codegen backend while the release
-//! builds on stable.
+//! Keeps Cargo profile backend keys out of the stable release configuration.
 //!
 //! The release workflow builds with `cross +stable build --release`, and stable
 //! Cargo reads `.cargo/config.toml` like any other Cargo. It refuses a
 //! `codegen-backend` key there ("config profile `dev` is not valid") and stops,
-//! so a backend selected in that file breaks every release build. The Cranelift
-//! selection therefore lives in `tools/dev-fast/config.toml`, which only the
-//! development make targets pass with `--config`. The judgement is driven
-//! against fixtures first, because a rule exercised only over this repository's
-//! own compliant files would pass whether or not it detects anything, and then
-//! applied to the real files. Both are read as text so the contract needs no
-//! parser dependency.
+//! so the profile-level Cargo setting remains forbidden. Development selects
+//! Cranelift with rustc's `-Zcodegen-backend=cranelift` flag; the release build
+//! assigns an empty `RUSTFLAGS` so stable rustc never receives that flag. The
+//! judgement is driven against fixtures first, because a rule exercised only
+//! over this repository's own compliant files would pass whether or not it
+//! detects anything, and then applied to the real files. Both are read as text
+//! so the contract needs no parser dependency.
 
 use proptest::prelude::*;
 use rstest::rstest;

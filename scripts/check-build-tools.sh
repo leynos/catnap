@@ -79,7 +79,7 @@ check_coverage_linkers() {
 }
 
 check_toolchain() {
-  local toolchain=$1 installed_toolchains installed_components required_components
+  local toolchain=$1 mode=$2 installed_toolchains installed_components required_components
   local component package_name status=0
   local -a components
   if ! command -v rustup >/dev/null 2>&1; then
@@ -107,6 +107,10 @@ check_toolchain() {
   fi
   IFS=',' read -r -a components <<< "$required_components"
   for component in "${components[@]}"; do
+    if [ "$mode" = '--coverage-only' ] &&
+      [ "$component" = 'rustc-codegen-cranelift-preview' ]; then
+      continue
+    fi
     case "$component" in
       *-preview) package_name=${component%-preview} ;;
       *) package_name=$component ;;
@@ -138,7 +142,7 @@ main() {
     --coverage-only) check_coverage_linkers || status=1 ;;
     --toolchain-only) ;;
   esac
-  check_toolchain "$toolchain_pin" || status=1
+  check_toolchain "$toolchain_pin" "$mode" || status=1
   [ "$status" -eq 0 ] || note 'capability check failed; see the messages above'
   return "$status"
 }

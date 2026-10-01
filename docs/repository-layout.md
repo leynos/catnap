@@ -22,6 +22,8 @@ omits build output such as `target/`.
 
 ├── docs/
 │   ├── contents.md
+│   ├── adr/
+│   │   └── 0001-cranelift-development-backend.md
 │   ├── developers-guide.md
 │   ├── repository-layout.md
 │   ├── users-guide.md
@@ -75,6 +77,7 @@ omits build output such as `target/`.
 
 - `docs/`: Holds long-lived reference documentation, guides, style rules, and
   design material.
+- `docs/adr/`: Holds accepted, numbered Architectural Decision Records.
 - `docs/contents.md`: Indexes the documentation set and should be updated when
   documentation files are added, renamed, or removed.
 - `docs/users-guide.md`: Explains how to use the generated project and its

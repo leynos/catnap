@@ -30,6 +30,8 @@ jobs:
           # One sccache lane with coverage-main.yml's publisher: only a push to main saves,
           # so pull requests warm from the lane main's publisher writes.
           sccache-cache-discriminator: coverage
+      - name: Install Cranelift backend
+        run: make install-cranelift
       - name: Install clang and lld
         if: runner.os == 'Linux'
         run: |

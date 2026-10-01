@@ -109,9 +109,8 @@ jobs:
       - name: Build release binary (cross)
         if: matrix.builder == 'cross'
         # Use +stable to override rust-toolchain.toml's nightly pin, so release
-        # builds use stable. Stable Cargo reads .cargo/config.toml too, which
-        # is why that file may select no codegen backend (see "Cranelift
-        # exception" in docs/developers-guide.md).
+        # builds use stable. The empty RUSTFLAGS below removes the nightly-only
+        # development flags from .cargo/config.toml before stable rustc runs.
         env:
           # Build release artefacts without repository-local linker flags,
           # including mold rustflags from .cargo/config.toml.

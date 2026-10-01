@@ -33,3 +33,8 @@ set.
 - [Scripting standards](scripting-standards.md) explains the preferred Python
   scripting stack, command execution patterns, and test expectations for helper
   scripts.
+
+## Accepted decisions
+
+- [ADR 001: Cranelift development backend](adr/0001-cranelift-development-backend.md)
+  records the nightly development backend choice and stable release boundary.

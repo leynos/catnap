@@ -9,6 +9,7 @@ const VALID_WORKFLOW: &str = r"jobs:
       - uses: leynos/shared-actions/.github/actions/setup-rust@9a27950942334d69ff79005b3a8db23bf151f43f
         with:
           install-mold: true
+      - run: make install-cranelift
       - run: cargo test
 ";
 
@@ -19,6 +20,10 @@ pub(super) enum Mutation {
     ConditionalSetup,
     IgnoredSetup,
     DistroMold,
+    MissingCraneliftSetup,
+    CraneliftSetupAfterSuite,
+    ConditionalCraneliftSetup,
+    IgnoredCraneliftSetup,
 }
 
 pub(super) fn valid_workflow() -> Result<Value, String> {
@@ -50,15 +55,13 @@ pub(super) fn mutate_valid_workflow(mutation: Mutation) -> Result<Value, String>
     match mutation {
         Mutation::MissingSetup => add_suite_without_setup(&mut workflow)?,
         Mutation::SetupAfterSuite => move_setup_after_suite(&mut workflow)?,
-        Mutation::ConditionalSetup => add_setup_field(
-            &mut workflow,
-            "if",
-            Value::String("runner.os == 'Linux'".into()),
-        )?,
-        Mutation::IgnoredSetup => {
-            add_setup_field(&mut workflow, "continue-on-error", Value::Bool(true))?;
-        }
+        Mutation::ConditionalSetup => make_setup_conditional(&mut workflow)?,
+        Mutation::IgnoredSetup => ignore_setup_failure(&mut workflow)?,
         Mutation::DistroMold => add_distro_mold_install(&mut workflow)?,
+        Mutation::MissingCraneliftSetup => remove_cranelift_setup(&mut workflow)?,
+        Mutation::CraneliftSetupAfterSuite => move_cranelift_setup_after_suite(&mut workflow)?,
+        Mutation::ConditionalCraneliftSetup => make_cranelift_setup_conditional(&mut workflow)?,
+        Mutation::IgnoredCraneliftSetup => ignore_cranelift_setup_failure(&mut workflow)?,
     }
     Ok(workflow)
 }
@@ -75,10 +78,44 @@ fn add_suite_without_setup(workflow: &mut Value) -> Result<(), String> {
 
 fn move_setup_after_suite(workflow: &mut Value) -> Result<(), String> {
     let steps = suite_steps_mut(workflow)?;
-    if steps.len() < 2 {
-        return Err("valid workflow needs at least two steps".to_owned());
+    if steps.len() < 3 {
+        return Err("valid workflow needs mold setup, Cranelift setup, and suite steps".to_owned());
     }
-    steps.swap(0, 1);
+    steps.swap(0, 2);
+    Ok(())
+}
+
+fn remove_cranelift_setup(workflow: &mut Value) -> Result<(), String> {
+    let steps = suite_steps_mut(workflow)?;
+    if steps.len() < 3 {
+        return Err("valid workflow needs a Cranelift setup and suite step".to_owned());
+    }
+    steps.remove(1);
+    Ok(())
+}
+
+fn move_cranelift_setup_after_suite(workflow: &mut Value) -> Result<(), String> {
+    let steps = suite_steps_mut(workflow)?;
+    if steps.len() < 3 {
+        return Err("valid workflow needs a Cranelift setup and suite step".to_owned());
+    }
+    steps.swap(1, 2);
+    Ok(())
+}
+
+fn add_cranelift_setup_field(
+    workflow: &mut Value,
+    field: &str,
+    value: Value,
+) -> Result<(), String> {
+    let steps = suite_steps_mut(workflow)?;
+    let setup = steps
+        .get_mut(1)
+        .ok_or_else(|| "valid workflow has no Cranelift setup step".to_owned())?;
+    setup
+        .as_mapping_mut()
+        .ok_or_else(|| "Cranelift setup is not a mapping".to_owned())?
+        .insert(field.into(), value);
     Ok(())
 }
 
@@ -91,6 +128,22 @@ fn add_setup_field(workflow: &mut Value, field: &str, value: Value) -> Result<()
         .ok_or_else(|| "setup step is not a mapping".to_owned())?
         .insert(field.into(), value);
     Ok(())
+}
+
+fn make_setup_conditional(workflow: &mut Value) -> Result<(), String> {
+    add_setup_field(workflow, "if", Value::String("runner.os == 'Linux'".into()))
+}
+
+fn ignore_setup_failure(workflow: &mut Value) -> Result<(), String> {
+    add_setup_field(workflow, "continue-on-error", Value::Bool(true))
+}
+
+fn make_cranelift_setup_conditional(workflow: &mut Value) -> Result<(), String> {
+    add_cranelift_setup_field(workflow, "if", Value::String("runner.os == 'Linux'".into()))
+}
+
+fn ignore_cranelift_setup_failure(workflow: &mut Value) -> Result<(), String> {
+    add_cranelift_setup_field(workflow, "continue-on-error", Value::Bool(true))
 }
 
 fn add_distro_mold_install(workflow: &mut Value) -> Result<(), String> {

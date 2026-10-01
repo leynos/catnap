@@ -4,6 +4,8 @@ use std::error::Error;
 
 use rstest::rstest;
 
+#[path = "build_tools_contract/components.rs"]
+mod components;
 #[path = "build_tools_contract/installer.rs"]
 mod installer;
 #[path = "build_tools_contract/support.rs"]

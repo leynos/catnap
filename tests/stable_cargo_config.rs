@@ -1,13 +1,11 @@
-//! Runs stable Cargo against this repository's `.cargo/config.toml`.
+//! Runs stable Cargo against the release override for `.cargo/config.toml`.
 //!
 //! `build_backend_contract.rs` reads the configuration and the release
 //! workflow as text. This test asks the tool the release actually uses: stable
-//! Cargo resolves every configured profile before it looks for the target it
-//! was asked to build, and stops with "config profile `dev` is not valid" when
-//! one selects a codegen backend. Asking it to build a binary that does not
-//! exist therefore reaches that check and then fails on the missing target,
-//! without compiling anything, so a refused configuration and an accepted one
-//! differ in the message. That is the failure that broke the v0.1.0 release.
+//! Cargo loads the actual configuration with an empty `RUSTFLAGS`, as the
+//! stable release steps do. It then fails on the deliberately missing target
+//! without compiling anything. A profile-level backend key is still refused,
+//! but the direct nightly rustc flags are displaced by the release override.
 
 use std::process::Command;
 
@@ -80,10 +78,9 @@ fn stable_cargo_accepts_the_repository_configuration() -> Result<()> {
         ])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         // The release assigns an empty `RUSTFLAGS`, which displaces the
-        // configuration's nightly-only `-Zthreads` flag before stable rustc
-        // sees it. The probe does the same: the `RUSTFLAGS` the make targets
-        // export carry `-Zthreads`, which stable rustc refuses outright. Profile
-        // validity, the subject here, does not depend on the flags.
+        // configuration's nightly-only Cranelift and frontend flags before
+        // stable rustc sees them. Profile validity, the subject here, does not
+        // depend on those compiler flags.
         .env("RUSTFLAGS", "")
         .output()
         .context("running `rustup run stable cargo`")?;
