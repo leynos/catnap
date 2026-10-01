@@ -50,7 +50,7 @@ jobs:
       - name: Setup Rust
         # The pull-request lane's revision, so both measurements share one
         # toolchain setup.
-        uses: leynos/shared-actions/.github/actions/setup-rust@9a27950942334d69ff79005b3a8db23bf151f43f
+        uses: leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
           expect-cache: any
           # One sccache lane with ci.yml's build-test: only a push to main saves,
