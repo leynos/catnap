@@ -3,6 +3,7 @@ channel = "nightly-2026-05-28"
 components = [
   "clippy",
   "llvm-tools-preview",
+  "rust-analyzer",
   "rustc-codegen-cranelift-preview",
   "rustfmt",
 ]

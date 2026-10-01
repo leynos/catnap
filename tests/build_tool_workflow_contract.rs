@@ -32,6 +32,47 @@ fn every_reachable_linux_rust_suite_has_pinned_mold_setup() {
     );
 }
 
+#[test]
+fn ci_installs_rust_analyzer_before_running_the_lint_suite() {
+    let root = repository_root().expect("open repository");
+    let source = root
+        .read_to_string(".github/workflows/ci.yml")
+        .expect("read CI workflow");
+    let workflow: Value = serde_norway::from_str(&source).expect("parse CI workflow");
+    let steps = workflow
+        .get("jobs")
+        .and_then(|jobs| jobs.get("build-test"))
+        .and_then(|job| job.get("steps"))
+        .and_then(Value::as_sequence)
+        .expect("CI build-test steps");
+    let install_index = steps
+        .iter()
+        .position(|step| {
+            step.get("run").and_then(Value::as_str) == Some("rustup component add rust-analyzer")
+        })
+        .expect("CI rust-analyzer installation step");
+    let lint_index = steps
+        .iter()
+        .position(|step| {
+            step.get("run")
+                .and_then(Value::as_str)
+                .is_some_and(|run| run.starts_with("/usr/bin/make ") && run.ends_with(" lint"))
+        })
+        .expect("CI lint step");
+    let install_step = steps
+        .get(install_index)
+        .expect("rust-analyzer installation step index");
+
+    assert!(
+        install_index < lint_index,
+        "rust-analyzer must be installed before lint"
+    );
+    assert!(
+        install_step.get("if").is_none() && install_step.get("continue-on-error").is_none(),
+        "rust-analyzer installation must be unconditional and fail the job"
+    );
+}
+
 #[rstest]
 #[case::new_linux_suite_without_setup(Mutation::MissingSetup, "new-suite")]
 #[case::installer_after_suite(Mutation::SetupAfterSuite, "suite")]

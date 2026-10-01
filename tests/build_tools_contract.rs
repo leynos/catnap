@@ -131,7 +131,11 @@ fn missing_pinned_toolchain_component_reports_install_hint(
     sandbox
         .write_rustup_with_components(
             PINNED_TOOLCHAIN,
-            "clippy-x86_64-unknown-linux-gnu\nllvm-tools-x86_64-unknown-linux-gnu\n",
+            concat!(
+                "clippy-x86_64-unknown-linux-gnu\n",
+                "llvm-tools-x86_64-unknown-linux-gnu\n",
+                "rust-analyzer-x86_64-unknown-linux-gnu\n"
+            ),
         )
         .expect("write fake rustup without rustfmt");
 

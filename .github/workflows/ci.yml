@@ -30,6 +30,9 @@ jobs:
           # One sccache lane with coverage-main.yml's publisher: only a push to main saves,
           # so pull requests warm from the lane main's publisher writes.
           sccache-cache-discriminator: coverage
+      - name: Install rust-analyzer
+        # The shared setup action installs build components but not this one.
+        run: rustup component add rust-analyzer
       - name: Install Cranelift backend
         run: make install-cranelift
       - name: Install clang and lld

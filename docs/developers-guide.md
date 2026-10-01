@@ -109,10 +109,10 @@ Development, test, lint, and typecheck builds use Cranelift
 (`-Zthreads=8`), plus the `mold` linker on Linux (`-Clink-arg=-fuse-ld=mold`).
 These defaults live in `.cargo/config.toml`, which Cargo discovers on its own,
 so a bare `cargo build` gets them. The pinned toolchain includes the Cranelift
-component. `mold` ships for Linux only, so the linker flag lives in a
-Linux-only table and macOS and Windows keep their platform linker. Cargo
-selects one `rustflags` source rather than merging them, so every source
-repeats the development flags apart from the linker.
+component and `rust-analyzer` for editor integration. `mold` ships for Linux
+only, so the linker flag lives in a Linux-only table and macOS and Windows keep
+their platform linker. Cargo selects one `rustflags` source rather than merging
+them, so every source repeats the development flags apart from the linker.
 
 An assigned `RUSTFLAGS` replaces the configuration's flags, so the Makefile
 recipes that set it compose the standard's flags onto any inherited value (CI's
@@ -127,28 +127,29 @@ assigned too.
 
 On Linux, install `clang` and `lld` with the operating system's package
 manager, then run `make install-build-tools` to install the pinned nightly with
-its requested components, including Cranelift, and the checksum-verified `mold`
-release. CI's shared Rust setup action has a fixed component list, so
-`make install-cranelift` adds the pinned backend before any development build.
-`make check-build-tools` verifies the nightly and its components, `clang`, and
-the pinned `mold` version before development, test, lint, and typecheck builds.
-Formatting and coverage targets are checked separately: formatting checks the
-toolchain and Cranelift component, while coverage checks its toolchain,
-`clang`, and `lld` without requiring `mold` or Cranelift. The local Make routes
-put `$(BUILD_TOOLS_PREFIX)/bin` first on `PATH`; CI keeps the binary path
-supplied by `setup-rust`'s `install-mold` input. The shared
-`scripts/build-tools-common.sh` helpers are scoped to the installer and checker
-so both commands read the same pins. `tests/build_standard_contract.rs` holds
-the Rust flag standard. It reads the configuration sources, the commands
-`make -n` prints for each development target on a Linux host and a macOS host
-(each keeping the caller's own `RUSTFLAGS`) and for each coverage and release
-target on a Linux host, and the `setup-rust` steps of the CI workflows (each
-must pass `install-mold`), so a flag lost through a recipe or workflow edit
-fails there. `tests/build_tool_workflow_contract.rs` also scans workflow files
-for Linux Rust suites and requires an earlier pinned `setup-rust` mold
-installation. Its mutation cases cover absent, late, conditional, and
-soft-failing installation steps, plus later system-package installs that could
-shadow the pinned binary.
+its requested components, including `rust-analyzer` and Cranelift, and the
+checksum-verified `mold` release. CI's shared Rust setup action has a fixed
+component list, so `rustup component add rust-analyzer` and
+`make install-cranelift` add the missing components before any development
+build. `make check-build-tools` verifies the nightly and its components,
+`clang`, and the pinned `mold` version before development, test, lint, and
+typecheck builds. Formatting and coverage targets are checked separately:
+formatting checks the toolchain and its requested components, while coverage
+checks its toolchain components other than Cranelift, `clang`, and `lld`
+without requiring `mold`. The local Make routes put `$(BUILD_TOOLS_PREFIX)/bin`
+first on `PATH`; CI keeps the binary path supplied by `setup-rust`'s
+`install-mold` input. The shared `scripts/build-tools-common.sh` helpers are
+scoped to the installer and checker so both commands read the same pins.
+`tests/build_standard_contract.rs` holds the Rust flag standard. It reads the
+configuration sources, the commands `make -n` prints for each development
+target on a Linux host and a macOS host (each keeping the caller's own
+`RUSTFLAGS`) and for each coverage and release target on a Linux host, and the
+`setup-rust` steps of the CI workflows (each must pass `install-mold`), so a
+flag lost through a recipe or workflow edit fails there.
+`tests/build_tool_workflow_contract.rs` also scans workflow files for Linux
+Rust suites and requires an earlier pinned `setup-rust` mold installation. Its
+mutation cases cover absent, late, conditional, and soft-failing installation
+steps, plus later system-package installs that could shadow the pinned binary.
 
 ### Markdown formatting and lint
 

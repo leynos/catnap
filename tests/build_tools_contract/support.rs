@@ -96,6 +96,7 @@ impl BuildToolsSandbox {
             concat!(
                 "clippy-x86_64-unknown-linux-gnu\n",
                 "llvm-tools-x86_64-unknown-linux-gnu\n",
+                "rust-analyzer-x86_64-unknown-linux-gnu\n",
                 "rustc-codegen-cranelift-x86_64-unknown-linux-gnu\n",
                 "rustfmt-x86_64-unknown-linux-gnu\n"
             ),

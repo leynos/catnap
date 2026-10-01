@@ -39,7 +39,7 @@ fn installer_passes_the_pinned_toolchain_components_to_rustup(
                 "--profile\n",
                 "minimal\n",
                 "--component\n",
-                "clippy,llvm-tools-preview,rustc-codegen-cranelift-preview,rustfmt\n"
+                "clippy,llvm-tools-preview,rust-analyzer,rustc-codegen-cranelift-preview,rustfmt\n"
             ),
             PINNED_TOOLCHAIN
         )
