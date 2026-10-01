@@ -55,7 +55,9 @@ the Cranelift backend. Release builds use stable Rust and clear the
 nightly-only development flags before compiling. On Linux targets,
 `.cargo/config.toml` configures clang to link with `mold` so local debug builds
 link quickly. Coverage generation stays on LLVM and uses `lld` because LLVM
-coverage tools expect LLVM-compatible linker behaviour.
+coverage tools expect LLVM-compatible linker behaviour. The [build
+orchestration migration guide](migrations/v0-1-0.md) explains the available
+Netsuke commands, their former Make equivalents, and local setup.
 
 ## Netsukefile actions
 

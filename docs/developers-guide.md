@@ -4,6 +4,11 @@ This guide explains the contributor workflow for the `catnap` command. The
 accepted [Cranelift build decision](adr/0001-cranelift-development-backend.md)
 records the compatibility evidence and limits behind the development default.
 
+The accepted build orchestration decision records why the repository uses
+Netsuke instead of Make ([ADR 002](adr/0002-netsuke-build-orchestration.md)).
+Contributors moving from the former Make targets can consult the
+[migration guide](migrations/v0-1-0.md).
+
 ## Local Workflow
 
 Use `netsuke` as the public entrypoint for formatting, linting, and tests. The
