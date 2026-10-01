@@ -31,6 +31,7 @@ mod codescene_token;
 #[path = "workflow_lint/whitaker.rs"]
 mod whitaker;
 
+/// Confirm the aggregate lint action reaches both workflow linters in order.
 #[rstest]
 fn lint_target_invokes_the_workflow_linters(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
@@ -50,6 +51,7 @@ fn lint_target_invokes_the_workflow_linters(lint_sandbox: Result<LintSandbox, Bo
     );
 }
 
+/// A failing workflow linter must make the aggregate action fail.
 #[rstest]
 fn lint_target_propagates_a_workflow_linter_failure(
     lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
@@ -72,6 +74,7 @@ fn lint_target_propagates_a_workflow_linter_failure(
     );
 }
 
+/// A missing linter must not silently turn the workflow gate into a no-op.
 #[rstest]
 fn lint_target_fails_when_a_workflow_linter_is_missing(
     lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
@@ -94,6 +97,7 @@ fn lint_target_fails_when_a_workflow_linter_is_missing(
     );
 }
 
+/// Keep the workflow and its pinned CI tools aligned with the build graph.
 #[rstest]
 fn workflow_lint_policy_supports_github_actions_and_pinned_ci_tools(
     lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
@@ -202,6 +206,7 @@ struct LintSandbox {
     temporary_directory: TempDir,
 }
 
+/// Give each Netsuke invocation its own graph to permit parallel Rust tests.
 #[fixture]
 fn lint_sandbox() -> Result<LintSandbox, Box<dyn Error>> {
     let temporary_directory = tempfile::tempdir()?;
@@ -237,14 +242,17 @@ impl LintSandbox {
             .collect())
     }
 
+    /// Exercise the real lint graph while selecting a fake failing tool.
     fn run_lint(&self, failing_tool: Option<&str>) -> Result<Output, Box<dyn Error>> {
         self.run_netsuke(failing_tool, &self.tool_command("yamllint"))
     }
 
+    /// Model failed tool discovery independently of the host's installations.
     fn run_with_missing_yamllint(&self) -> Result<Output, Box<dyn Error>> {
         self.run_netsuke(None, "/missing/yamllint")
     }
 
+    /// Run from the isolated manifest so tests cannot contend for Ninja state.
     fn run_netsuke(
         &self,
         failing_tool: Option<&str>,

@@ -27,7 +27,8 @@ name: Coverage (main)
 # uploads land in commit order. A manual re-run of an older main run is an
 # operator action: it republishes that commit's coverage and baseline until
 # the next push. Keying on the event too would let an earlier dispatch finish
-# after a newer push and upload older coverage last. `make test-workflow-contracts` pins this group.
+# after a newer push and upload older coverage last. `netsuke build
+# test-workflow-contracts` pins this group.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -44,6 +45,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       BUILD_PROFILE: debug
+      NETSUKE_TOOLCHAIN: nightly-2026-08-23
+      NETSUKE_VERSION: 0.1.0-beta4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -58,13 +61,28 @@ jobs:
           # One sccache lane with ci.yml's build-test: only a push to main saves,
           # so pull requests warm from the lane main's publisher writes.
           sccache-cache-discriminator: coverage
+      - name: Cache Netsuke
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cargo/bin/netsuke
+          key: netsuke-${{ runner.os }}-${{ runner.arch }}-${{ env.NETSUKE_VERSION }}-${{ env.NETSUKE_TOOLCHAIN }}
+      - name: Install Netsuke from crates.io
+        # Coverage runs integration tests that execute Netsuke.
+        run: |
+          set -euo pipefail
+          if netsuke --version 2>/dev/null | grep --fixed-strings --quiet "${NETSUKE_VERSION}"; then
+            exit 0
+          fi
+          rustup toolchain install "${NETSUKE_TOOLCHAIN}" --profile minimal
+          cargo "+${NETSUKE_TOOLCHAIN}" install --locked \
+            netsuke-build --version "=${NETSUKE_VERSION}"
       - name: Install coverage linkers
         # The pull-request lane's clang/lld packages; setup-rust supplies mold.
         run: |
           set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update \
-            && sudo apt-get install --yes --no-install-recommends clang lld
+            && sudo apt-get install --yes --no-install-recommends clang lld ninja-build
       - name: Test and Measure Coverage
         # The same action, linker environment, format, output path and default
         # baseline files as the pull-request lane, so the figure written here
