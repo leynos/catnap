@@ -1,4 +1,4 @@
-.PHONY: help all clean test build release coverage lint github-actions-lint fmt check-fmt \
+.PHONY: help all clean test test-ui build release coverage lint github-actions-lint fmt check-fmt \
 	markdownlint nixie spelling test-workflow-contracts install-build-tools \
 	install-cranelift check-build-tools check-rust-toolchain check-coverage-tools
 .NOTPARALLEL:
@@ -42,7 +42,7 @@ UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 BUILD_TOOLS_PREFIX ?= $(HOME)/.local
 BUILD_TOOLS_PATH := $(if $(filter true,$(GITHUB_ACTIONS)),$(PATH),$(BUILD_TOOLS_PREFIX)/bin:$(PATH))
 BUILD_TOOL_TARGETS := \
-	install-build-tools check-build-tools check-rust-toolchain check-coverage-tools build test lint \
+	install-build-tools check-build-tools check-rust-toolchain check-coverage-tools build test test-ui lint \
 	typecheck fmt check-fmt coverage target/debug/$(TARGET)
 $(BUILD_TOOL_TARGETS): export BUILD_TOOLS_PREFIX := $(BUILD_TOOLS_PREFIX)
 $(BUILD_TOOL_TARGETS): export PATH := $(BUILD_TOOLS_PATH)
@@ -102,6 +102,10 @@ test: check-build-tools ## Run tests with warnings treated as errors
 	$(if $(filter nextest run,$(TEST_CMD)),\
 		RUSTFLAGS="$${RUSTFLAGS:+$$RUSTFLAGS }$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" \
 		$(CARGO) test --workspace --doc --all-features,:)
+
+test-ui: check-build-tools ## Run public error UI contract tests
+	RUSTFLAGS="$${RUSTFLAGS:+$$RUSTFLAGS }$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" \
+		$(CARGO) $(TEST_CMD) --test ui $(BUILD_JOBS)
 
 
 target/%/$(TARGET): ## Build binary in debug or release mode

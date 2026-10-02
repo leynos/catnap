@@ -123,6 +123,8 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest
+      - name: Test public error UI contracts
+        run: make test-ui
       - name: Install Whitaker
         uses: leynos/shared-actions/.github/actions/install-whitaker@ff1dd759dfffc0db3459e30e833f52437ee62b57
       - name: Lint

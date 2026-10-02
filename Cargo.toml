@@ -86,6 +86,8 @@ result_large_err                    = "deny"
 
 [lints.rust]
 missing_docs                        = "deny"
+# cargo-llvm-cov uses this cfg to select tests incompatible with instrumentation.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage)"] }
 
 [lints.rustdoc]
 missing_crate_level_docs            = "deny"

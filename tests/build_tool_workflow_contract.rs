@@ -73,6 +73,49 @@ fn ci_installs_rust_analyzer_before_running_the_lint_suite() {
     );
 }
 
+#[test]
+fn ci_runs_ui_contract_tests_before_coverage() {
+    let root = repository_root().expect("open repository");
+    let source = root
+        .read_to_string(".github/workflows/ci.yml")
+        .expect("read CI workflow");
+    let workflow: Value = serde_norway::from_str(&source).expect("parse CI workflow");
+    let steps = workflow
+        .get("jobs")
+        .and_then(|jobs| jobs.get("build-test"))
+        .and_then(|job| job.get("steps"))
+        .and_then(Value::as_sequence)
+        .expect("CI build-test steps");
+    let runner_index = steps
+        .iter()
+        .position(|step| step.get("name").and_then(Value::as_str) == Some("Install test runner"))
+        .expect("CI test runner installation step");
+    let ui_index = steps
+        .iter()
+        .position(|step| step.get("run").and_then(Value::as_str) == Some("make test-ui"))
+        .expect("CI UI test step");
+    let coverage_index = steps
+        .iter()
+        .position(|step| {
+            step.get("name").and_then(Value::as_str) == Some("Test and Measure Coverage")
+        })
+        .expect("CI coverage step");
+    let ui_step = steps.get(ui_index).expect("UI test step index");
+
+    assert!(
+        runner_index < ui_index,
+        "install nextest before the UI test target"
+    );
+    assert!(
+        ui_index < coverage_index,
+        "UI contracts must run before coverage"
+    );
+    assert!(
+        ui_step.get("if").is_none() && ui_step.get("continue-on-error").is_none(),
+        "UI contract tests must run unconditionally and fail the job"
+    );
+}
+
 #[rstest]
 #[case::new_linux_suite_without_setup(Mutation::MissingSetup, "new-suite")]
 #[case::installer_after_suite(Mutation::SetupAfterSuite, "suite")]

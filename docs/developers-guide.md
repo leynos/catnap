@@ -167,13 +167,18 @@ the formatter and linter use the same rule implementation as CI. Install Bun for
 
 ### Cold-cache allowance for the trybuild tests
 
-`.config/nextest.toml` keeps the 180 s per-test allowance that the coverage
-action writes when a repository has no file of its own, and gives the `ui`
-tests three times that. They run a nested Cargo that compiles the whole
+`.config/nextest.toml` gives each test 180 s and gives the `ui` tests three
+allowed timeouts. They run nested Cargo builds that compile the whole
 dependency graph, and a pull request has no warm sccache directory until the
 default branch has written one (`setup-rust` owns that directory and only a
 push to the default branch writes it). Before that cache exists, the nested
 build alone can exceed 180 s on a GitHub-hosted runner.
+
+The coverage action marks the two trybuild tests ignored because their nested
+Cargo processes reload the Cranelift development flags while LLVM coverage adds
+`-C instrument-coverage`, which Cranelift cannot use. CI runs the same UI tests
+with `make test-ui` before starting coverage, so they still gate pull requests;
+`make test` includes them in ordinary local validation.
 
 ### Cranelift development backend
 
@@ -320,11 +325,11 @@ non-breaking change for downstream crates.
 Run the focused harness with:
 
 ```sh
-cargo test --test ui
+make test-ui
 ```
 
-`make test` also discovers the harness and is the required pre-commit and CI
-entrypoint.
+`make test` also discovers the harness and is the required local pre-commit
+entrypoint. CI runs `make test-ui` separately before the coverage step.
 
 #### Updating display fixtures
 
@@ -342,7 +347,7 @@ expected diagnostic. Add every new variant to the fixture's `match`, then
 regenerate the snapshot with:
 
 ```sh
-TRYBUILD=overwrite cargo test --test ui
+TRYBUILD=overwrite make test-ui
 ```
 
 Review the regenerated diagnostic before committing. Because the snapshots
