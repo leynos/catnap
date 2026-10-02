@@ -82,8 +82,8 @@ omits build output such as `target/`.
   wiring.
 - `src/cli.rs`: Parses GNU-like sleep operands, public options, and the hidden
   e2e-only logical-second argument.
-- `src/clock.rs`: Defines the injectable monotonic clock trait and the real
-  `Instant`-backed implementation.
+- `src/clock.rs`: Defines Catnap's logical-sleeper scaling policy, which
+  composes with Monotony's injectable monotonic clock trait.
 - `src/duration.rs`: Parses duration operands, owns the suffix metadata, and
   selects progress-reporting intervals.
 - `src/duration_number.rs`: Converts the numeric part of a duration operand
