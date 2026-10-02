@@ -125,6 +125,29 @@ from stable release builds. Cargo has no per-profile `rustflags`, so a direct
 `cargo build --release` takes the configuration's flags unless `RUSTFLAGS` is
 assigned too.
 
+For screen readers: This flowchart shows that unassigned `RUSTFLAGS` use
+Cargo's configuration, development commands compose inherited flags with the
+standard, coverage uses its own flags, and release uses empty flags.
+Development builds use the parallel frontend and select `mold` only on Linux.
+
+```mermaid
+flowchart TD
+    Start[Build or test command] --> Assigned{RUSTFLAGS assigned?}
+    Assigned -->|No| Config[Cargo config defaults]
+    Assigned -->|Development path| Compose[Compose inherited flags with STANDARD_RUSTFLAGS]
+    Assigned -->|Coverage| Coverage[Use coverage-specific flags]
+    Assigned -->|Release| Release[Use empty RUSTFLAGS]
+    Config --> Fast[Parallel rustc frontend]
+    Compose --> Fast
+    Fast --> Linux{Linux?}
+    Linux -->|Yes| Mold[Use mold linker]
+    Linux -->|No| Platform[Use platform linker]
+    Coverage --> Platform
+    Release --> Stable[Stable Cargo and platform linker]
+```
+
+_Figure 1: Build-command `RUSTFLAGS` routing and platform linker selection._
+
 On Linux, install `clang` and `lld` with the operating system's package
 manager, then run `make install-build-tools` to install the pinned nightly with
 its requested components, including `rust-analyzer` and Cranelift, and the
@@ -353,7 +376,7 @@ TRYBUILD=overwrite make test-ui
 Review the regenerated diagnostic before committing. Because the snapshots
 capture compiler output, they are tied to the toolchain pinned in
 `rust-toolchain.toml`; a toolchain bump that rewords `E0004` requires the same
-regeneration step. A fixture that starts *passing* means the enum has lost
+regeneration step. A fixture that starts _passing_ means the enum has lost
 `#[non_exhaustive]`, which is a breaking change rather than a snapshot to
 refresh.
 
