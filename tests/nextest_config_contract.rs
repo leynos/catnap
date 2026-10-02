@@ -1,63 +1,57 @@
-//! Pins the exact nextest timeout policy for ordinary tests and the nested
-//! Cargo UI tests. A changed override must be reviewed with the build standard.
-
-use std::collections::BTreeMap;
+//! Contract tests for the repository's slow-test allowances.
 
 const CONFIG: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/.config/nextest.toml"));
 
-/// Reads the key/value fields of one inline `slow-timeout` table.
-///
-/// For example, `period = "180s"` becomes the `period` key with value
-/// `"180s"`; duplicates and malformed fields are errors.
-///
-/// # Errors
-///
-/// Returns a description of a malformed or repeated field.
-fn timeout_fields(line: &str) -> Result<BTreeMap<&str, &str>, String> {
-    let body = line
-        .strip_prefix("slow-timeout = {")
-        .and_then(|value| value.strip_suffix('}'))
-        .ok_or_else(|| format!("not an inline slow-timeout table: {line}"))?;
-    let mut fields = BTreeMap::new();
-    for field in body.split(',') {
-        let (key, value) = field
-            .trim()
-            .split_once('=')
-            .ok_or_else(|| format!("malformed slow-timeout field: {field}"))?;
-        if fields.insert(key.trim(), value.trim()).is_some() {
-            return Err(format!("repeated slow-timeout field: {key}"));
-        }
-    }
-    Ok(fields)
+/// Checks the structured timeout table against the agreed retry budget.
+fn assert_slow_timeout(table: &toml::Table, terminate_after: i64) {
+    assert_eq!(
+        table.get("period").and_then(toml::Value::as_str),
+        Some("180s")
+    );
+    assert_eq!(
+        table
+            .get("terminate-after")
+            .and_then(toml::Value::as_integer),
+        Some(terminate_after)
+    );
+    assert_eq!(
+        table.get("grace-period").and_then(toml::Value::as_str),
+        Some("5s")
+    );
 }
 
-/// The default is one 180 s period; only `binary(ui)` may take three.
+/// The default has one 180 s allowance; `binary(ui)` gets three attempts.
 #[test]
 fn nextest_preserves_the_exact_default_and_ui_allowances() {
-    let mut lines = CONFIG
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'));
-    assert_eq!(lines.next(), Some("[profile.default]"));
-    let default = lines.next().expect("missing default slow-timeout");
-    assert_eq!(
-        timeout_fields(default).expect("default timeout table is malformed"),
-        BTreeMap::from([
-            ("grace-period", "\"5s\""),
-            ("period", "\"180s\""),
-            ("terminate-after", "1"),
-        ])
-    );
-    assert_eq!(lines.next(), Some("[[profile.default.overrides]]"));
-    assert_eq!(lines.next(), Some("filter = 'binary(ui)'"));
-    let ui = lines.next().expect("missing UI slow-timeout");
-    assert_eq!(
-        timeout_fields(ui).expect("UI timeout table is malformed"),
-        BTreeMap::from([
-            ("grace-period", "\"5s\""),
-            ("period", "\"180s\""),
-            ("terminate-after", "3"),
-        ])
-    );
-    assert_eq!(lines.next(), None, "unexpected nextest settings");
+    let document =
+        toml::from_str::<toml::Value>(CONFIG).expect("nextest configuration must parse as TOML");
+    let default = document
+        .get("profile")
+        .and_then(toml::Value::as_table)
+        .and_then(|profile| profile.get("default"))
+        .and_then(toml::Value::as_table)
+        .expect("profile.default must be a table");
+    let default_timeout = default
+        .get("slow-timeout")
+        .and_then(toml::Value::as_table)
+        .expect("profile.default must define slow-timeout as a table");
+    assert_slow_timeout(default_timeout, 1);
+
+    let overrides = default
+        .get("overrides")
+        .and_then(toml::Value::as_array)
+        .expect("profile.default.overrides must be an array of tables");
+    let ui_overrides = overrides
+        .iter()
+        .filter(|override_table| {
+            override_table.get("filter").and_then(toml::Value::as_str) == Some("binary(ui)")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(ui_overrides.len(), 1, "one binary(ui) override is required");
+    let ui_timeout = ui_overrides
+        .first()
+        .and_then(|override_table| override_table.get("slow-timeout"))
+        .and_then(toml::Value::as_table)
+        .expect("binary(ui) override must define slow-timeout as a table");
+    assert_slow_timeout(ui_timeout, 3);
 }

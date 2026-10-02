@@ -16,10 +16,10 @@ sequential even when invoked with `-j`. The fake `make -j4 all` runner in
 `tests/workflow_lint/whitaker.rs` is local to the Whitaker consumer contract;
 it exercises gate order and failure without replacing the repository's real
 checks. `make test` prefers `cargo nextest run` and falls back to `cargo test`
-when cargo-nextest is not available. Because `cargo nextest run` does not
-execute doctests, a nextest-backed `make test` run skips them; run
-`cargo test --doc` separately as a required additional step when nextest is
-present. `make coverage` uses `cargo llvm-cov` with `lld`.
+when cargo-nextest is not available. Since nextest does not execute doctests,
+the nextest route follows with `cargo test --workspace --doc --all-features`;
+the Cargo fallback runs its normal doctests. `make coverage` uses
+`cargo llvm-cov` with `lld`.
 
 ### Coverage publication
 

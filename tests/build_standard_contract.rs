@@ -94,6 +94,11 @@ const NO_BUILD_SOURCE: &str = concat!(
     "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
     "rustflags = [\"-Zthreads=8\", \"-Clink-arg=-fuse-ld=mold\"]\n"
 );
+const ARCHITECTURE_ONLY_LINUX: &str = concat!(
+    "[build]\nrustflags = [\"-Zthreads=8\"]\n",
+    "[target.\"x86_64-unknown-linux-gnu\"]\n",
+    "rustflags = [\"-Zthreads=8\", \"-Clink-arg=-fuse-ld=mold\"]\n"
+);
 /// A stable configuration that names the nightly-only frontend flag.
 const STABLE_WITH_THREADS: &str = concat!(
     "[target.'cfg(target_os = \"linux\")']\nlinker = \"clang\"\n",
@@ -125,6 +130,7 @@ fn draws(config: &str, pin: Pin, expected: usize) -> Result<(), String> {
 #[case::linux_loses_the_linker(LINUX_LOSES_LINKER, Pin::Nightly, 1)]
 #[case::linker_named_in_build(LINKER_IN_BUILD, Pin::Nightly, 1)]
 #[case::no_build_source(NO_BUILD_SOURCE, Pin::Nightly, 1)]
+#[case::architecture_specific_linux_source(ARCHITECTURE_ONLY_LINUX, Pin::Nightly, 2)]
 #[case::stable_names_the_frontend(STABLE_WITH_THREADS, Pin::Stable, 1)]
 #[case::empty_configuration("", Pin::Nightly, 3)]
 fn the_configuration_reader_reports_each_defect(

@@ -99,6 +99,9 @@ clean: ## Remove build artefacts
 
 test: check-build-tools ## Run tests with warnings treated as errors
 	RUSTFLAGS="$${RUSTFLAGS:+$$RUSTFLAGS }$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) $(TEST_CMD) $(TEST_FLAGS) $(BUILD_JOBS)
+	$(if $(filter nextest run,$(TEST_CMD)),\
+		RUSTFLAGS="$${RUSTFLAGS:+$$RUSTFLAGS }$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" \
+		$(CARGO) test --workspace --doc --all-features,:)
 
 
 target/%/$(TARGET): ## Build binary in debug or release mode

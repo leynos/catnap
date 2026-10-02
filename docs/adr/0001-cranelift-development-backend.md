@@ -96,7 +96,7 @@ release workflow contract keep that distinction executable.
   - Select Cranelift by default for development and test builds.
   - Retain the stable release path and LLVM coverage path.
 - Non-goals:
-  - Change the release optimisation backend.
+  - Change the release optimization backend.
   - Claim a Catnap-specific compile-time improvement without a benchmark.
   - Prove every release-matrix target from the single Cross experiment.
 
