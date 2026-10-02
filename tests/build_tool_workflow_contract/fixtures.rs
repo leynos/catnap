@@ -6,7 +6,7 @@ const VALID_WORKFLOW: &str = r"jobs:
   suite:
     runs-on: ubuntu-latest
     steps:
-      - uses: leynos/shared-actions/.github/actions/setup-rust@9a27950942334d69ff79005b3a8db23bf151f43f
+      - uses: leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
           install-mold: true
       - run: make install-cranelift
