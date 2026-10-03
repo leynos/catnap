@@ -212,8 +212,16 @@ fn lint_sandbox() -> Result<LintSandbox, Box<dyn Error>> {
     let temporary_directory = tempfile::tempdir()?;
     let directory = Dir::open_ambient_dir(temporary_directory.path(), ambient_authority())?;
     directory.write(NETSUKEFILE, read_repository_file(NETSUKEFILE)?)?;
+    directory.create_dir_all("scripts")?;
+    write_fake_tool(&directory, "scripts/check-build-tools.sh")?;
     let invocation_log = temporary_directory.path().join("invocations.log");
-    for tool in ["cargo", "whitaker", "yamllint", "actionlint"] {
+    for tool in [
+        "cargo",
+        "cargo-nextest",
+        "whitaker",
+        "yamllint",
+        "actionlint",
+    ] {
         write_fake_tool(&directory, tool)?;
     }
     Ok(LintSandbox {
@@ -224,11 +232,13 @@ fn lint_sandbox() -> Result<LintSandbox, Box<dyn Error>> {
 }
 
 impl LintSandbox {
+    /// Read the fake tools' calls in execution order.
     fn invocations(&self) -> Result<Vec<String>, Box<dyn Error>> {
         let invocations = self.directory.read_to_string("invocations.log")?;
         Ok(invocations.lines().map(str::to_owned).collect())
     }
 
+    /// Select only calls made to GitHub Actions workflow linters.
     fn workflow_linter_invocations(&self) -> Result<Vec<String>, Box<dyn Error>> {
         Ok(self
             .invocations()?
@@ -244,17 +254,18 @@ impl LintSandbox {
 
     /// Exercise the real lint graph while selecting a fake failing tool.
     fn run_lint(&self, failing_tool: Option<&str>) -> Result<Output, Box<dyn Error>> {
-        self.run_netsuke(failing_tool, &self.tool_command("yamllint"))
+        self.run_netsuke("lint", failing_tool, &self.tool_command("yamllint"))
     }
 
     /// Model failed tool discovery independently of the host's installations.
     fn run_with_missing_yamllint(&self) -> Result<Output, Box<dyn Error>> {
-        self.run_netsuke(None, "/missing/yamllint")
+        self.run_netsuke("lint", None, "/missing/yamllint")
     }
 
     /// Run from the isolated manifest so tests cannot contend for Ninja state.
     fn run_netsuke(
         &self,
+        target: &str,
         failing_tool: Option<&str>,
         yamllint: &str,
     ) -> Result<Output, Box<dyn Error>> {
@@ -263,7 +274,7 @@ impl LintSandbox {
         let mut command = Command::new("netsuke");
         command
             .current_dir(self.temporary_directory.path())
-            .args(["build", "lint"])
+            .args(["build", target])
             .env("PATH", env::join_paths(path)?)
             .env("YAMLLINT", yamllint)
             .env("ACTIONLINT", self.tool_command("actionlint"))
@@ -277,9 +288,16 @@ impl LintSandbox {
         if let Some(tool_to_fail) = failing_tool {
             command.env("FAILING_TOOL", tool_to_fail);
         }
+        if target == "all" {
+            command.env(
+                "GATE_LOCK_DIR",
+                self.temporary_directory.path().join("gate-lock"),
+            );
+        }
         Ok(command.output()?)
     }
 
+    /// Resolve a fake tool by its absolute path in the sandbox.
     fn tool_command(&self, tool: &str) -> String {
         self.temporary_directory
             .path()
@@ -289,12 +307,15 @@ impl LintSandbox {
     }
 }
 
+/// Read a tracked contract fixture from the repository.
 fn read_repository_file(path: &str) -> Result<String, Box<dyn Error>> {
     Ok(repository_directory()?.read_to_string(path)?)
 }
 
+/// Locate the source tree independently of the test process's working directory.
 fn repository_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")) }
 
+/// Open the source tree through a capability-scoped directory.
 fn repository_directory() -> Result<Dir, Box<dyn Error>> {
     Ok(Dir::open_ambient_dir(
         repository_root(),
@@ -302,6 +323,7 @@ fn repository_directory() -> Result<Dir, Box<dyn Error>> {
     )?)
 }
 
+/// Extract an environment value from the CI job definition.
 fn workflow_environment_value<'workflow>(
     workflow: &'workflow str,
     name: &str,
@@ -320,6 +342,7 @@ fn workflow_environment_value<'workflow>(
         .ok_or_else(|| io::Error::other("CI workflow defines the required environment value"))
 }
 
+/// Extract a named CI step without including the next step.
 fn workflow_step<'workflow>(
     workflow: &'workflow str,
     name: &str,
@@ -331,6 +354,7 @@ fn workflow_step<'workflow>(
         .ok_or_else(|| io::Error::other("CI workflow contains the required step"))
 }
 
+/// Read one scalar field from a workflow step.
 fn workflow_step_field<'workflow>(
     step: &'workflow str,
     name: &str,
@@ -341,6 +365,7 @@ fn workflow_step_field<'workflow>(
         .ok_or_else(|| io::Error::other("CI workflow step contains the required field"))
 }
 
+/// Install a recording executable in the sandbox.
 fn write_fake_tool(directory: &Dir, tool: &str) -> Result<(), Box<dyn Error>> {
     directory.write(
         tool,

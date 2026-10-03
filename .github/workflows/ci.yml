@@ -49,9 +49,7 @@ jobs:
           rustup toolchain install "${NETSUKE_TOOLCHAIN}" --profile minimal
           cargo "+${NETSUKE_TOOLCHAIN}" install --locked \
             netsuke-build --version "=${NETSUKE_VERSION}"
-      - name: Install Cranelift backend
-        run: netsuke build install-cranelift
-      - name: Install clang and lld
+      - name: Install clang, lld, and Ninja
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
@@ -60,6 +58,8 @@ jobs:
           # compatibility.
           sudo apt-get update \
             && sudo apt-get install --yes --no-install-recommends clang lld ninja-build
+      - name: Install Cranelift backend
+        run: netsuke build install-cranelift
       - name: Install mdtablefix
         # `netsuke build check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.

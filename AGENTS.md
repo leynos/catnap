@@ -153,22 +153,28 @@ project:
     actionlint
     ```
 
+    For rustdoc and Clippy, Netsuke also preserves inherited `RUSTFLAGS`, adds
+    `-Zthreads=8` and the Cranelift backend, adds the mold linker flag on Linux,
+    and prepends the configured build-tools directory to `PATH`. Whitaker gets
+    only `RUSTFLAGS="-D warnings"`; the extra development flags are
+    intentionally excluded.
+
     This validates Rust documentation, linting, and all GitHub Actions
     workflows. Keep `.yamllint.yml` compatible with GitHub's unquoted `on`
     trigger key, and fix workflow findings rather than disabling either linter.
     CI must cache and install `yamllint` with `uv tool`, then cache the
     `actionlint` binary downloaded by its upstream script before invoking
     `netsuke build lint`.
-  - `netsuke build test` executes `cargo nextest run` when cargo-nextest is
-    available:
-
-    ```sh
-    RUSTFLAGS="-D warnings" cargo nextest run --all-targets --all-features
-    ```
-
-    Otherwise, it falls back to `cargo test --all-targets --all-features`.
-    Use `netsuke build fmt` to apply Rust and Markdown formatting fixes
-    reported by the formatter check.
+  - `netsuke build test` checks the pinned development toolchain and linker,
+    then runs `cargo nextest run --all-targets --all-features` when
+    cargo-nextest is available. It adds `-D warnings`, `-Zthreads=8`, and the
+    Cranelift backend to inherited `RUSTFLAGS`, plus the mold linker flag on
+    Linux, and prepends the configured build-tools directory to `PATH`. After
+    nextest, it runs `cargo test --workspace --doc --all-features` because
+    nextest does not run doctests. Without cargo-nextest, it falls back to
+    `cargo test --all-targets --all-features`, which includes its normal
+    doctest run. Use `netsuke build fmt` to apply Rust and Markdown formatting
+    fixes reported by the formatter check.
 - Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in the code itself rather than
   silencing them.

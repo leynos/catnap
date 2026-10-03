@@ -55,9 +55,9 @@ the Cranelift backend. Release builds use stable Rust and clear the
 nightly-only development flags before compiling. On Linux targets,
 `.cargo/config.toml` configures clang to link with `mold` so local debug builds
 link quickly. Coverage generation stays on LLVM and uses `lld` because LLVM
-coverage tools expect LLVM-compatible linker behaviour. The [build
-orchestration migration guide](migrations/v0-1-0.md) explains the available
-Netsuke commands, their former Make equivalents, and local setup.
+coverage tools expect LLVM-compatible linker behaviour. The
+[build orchestration migration guide](migrations/v0-1-0.md) explains the
+available Netsuke commands, their former Make equivalents, and local setup.
 
 ## Netsukefile actions
 
@@ -66,14 +66,14 @@ The repository's `Netsukefile` exposes these public actions. Use
 used actions include:
 
 - `netsuke` runs the default `all` action for formatting checks, linting, tests,
-  and spelling.
+  spelling, and workflow-contract checks.
 - `netsuke build check-fmt` verifies Rust and Markdown formatting.
 - `netsuke build lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint
   with warnings denied where supported.
 - `netsuke build github-actions-lint` validates GitHub Actions workflows.
 - `netsuke build test` runs `cargo nextest run` when cargo-nextest is installed
-  and then runs workspace doctests. When cargo-nextest is unavailable, it
-  falls back to `cargo test`, which includes its normal doctest run.
+  and then runs workspace doctests. When cargo-nextest is unavailable, it falls
+  back to `cargo test`, which includes its normal doctest run.
 - `netsuke build test-ui` runs the focused Rust UI tests.
 - `netsuke build test-workflow-contracts` checks the repository's workflow
   contracts, including the shared coverage policy.

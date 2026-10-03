@@ -8,7 +8,7 @@ use proptest::{prelude::*, test_runner::TestCaseError};
 use super::{
     ci_steps::{coverage_problems, linker_install_problems},
     config::{CODEGEN_BACKEND_FLAG, Flags, LINKER_FLAG, Pin, THREADS_FLAG, config_problems},
-    make::{Assignment, assigned_rustflags, commands_from},
+    netsuke::{Assignment, assigned_rustflags, commands_from},
 };
 
 fn release_channels() -> impl Strategy<Value = String> {

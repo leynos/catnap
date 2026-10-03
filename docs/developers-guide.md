@@ -12,12 +12,12 @@ Contributors moving from the former Make targets can consult the
 ## Local Workflow
 
 Use `netsuke` as the public entrypoint for formatting, linting, and tests. The
-default `all` action runs its formatting, lint, test, and spelling gates
-sequentially. The separate `markdownlint` and `nixie` actions validate Markdown
-and Mermaid diagrams. `netsuke build lint` runs rustdoc, Clippy, Whitaker,
-yamllint, and actionlint. Whitaker runs with warnings denied, without the
-development frontend and linker flags. CI installs its rolling suite through
-the pinned shared `install-whitaker` action,
+default `all` action runs its formatting, lint, test, spelling, and
+workflow-contract gates sequentially. The separate `markdownlint` and `nixie`
+actions validate Markdown and Mermaid diagrams. `netsuke build lint` runs
+rustdoc, Clippy, Whitaker, yamllint, and actionlint. Whitaker runs with
+warnings denied and without the development frontend or linker flags. CI
+installs the rolling suite with the pinned shared `install-whitaker` action,
 which verifies the default installer binary and refuses a source-build
 fallback. The suite version is not overridden. `netsuke build test` prefers
 `cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
@@ -75,10 +75,9 @@ only for a branch it analyses, which a pull request head is not.
 
 `netsuke build test-workflow-contracts` enforces the split by running
 `cv005-contracts check`, the shared contract library in `leynos/shared-actions`
-(`packages/cv005-contracts`), from the full commit named by
-`CV005_CONTRACTS_REF` in the `Netsukefile`; CI runs it in a "Check the CV-005
-contracts" step. A fix to the rules is therefore a pin bump. The repository's
-parameters are in
+(`packages/cv005-contracts`), from the pinned `leynos/shared-actions` revision
+in the `Netsukefile`; CI runs it in a "Check the CV-005 contracts" step. A fix
+to the rules is therefore a pin bump. The repository's parameters are in
 `.github/cv005.toml`: its `repository` name and the `[selection]` the baseline
 measures, which the publisher's generator must carry and every pull-request
 lane must match. The library's own suite proves each rule refuses the shape it
@@ -169,14 +168,13 @@ An assigned `RUSTFLAGS` replaces the configuration's flags, so the development
 build, test, typecheck, and Rust lint actions compose the standard's flags onto
 any inherited value (CI's `setup-rust` exports one). Whitaker is an exception:
 it runs with warning denial but without the development flags. Two builds are
-deliberately excluded: coverage
-assigns `RUSTFLAGS` without the fast flags, because a measurement should not
-depend on them, and the release recipe and workflow keep the platform linker,
-because they assign `RUSTFLAGS` (even an empty value displaces the
-configuration). This also keeps nightly-only Cranelift and frontend flags away
-from stable release builds. Cargo has no per-profile `rustflags`, so a direct
-`cargo build --release` takes the configuration's flags unless `RUSTFLAGS` is
-assigned too.
+deliberately excluded: coverage assigns `RUSTFLAGS` without the fast flags,
+because a measurement should not depend on them, and the release recipe and
+workflow keep the platform linker, because they assign `RUSTFLAGS` (even an
+empty value displaces the configuration). This also keeps nightly-only
+Cranelift and frontend flags away from stable release builds. Cargo has no
+per-profile `rustflags`, so a direct `cargo build --release` takes the
+configuration's flags unless `RUSTFLAGS` is assigned too.
 
 For screen readers: This flowchart shows that unassigned `RUSTFLAGS` use
 Cargo's configuration, development commands compose inherited flags with the
@@ -213,30 +211,28 @@ test, lint, and typecheck builds. Formatting and coverage are checked
 separately: `check-rust-toolchain` verifies the toolchain and requested
 components for formatting, while `check-coverage-tools` verifies the coverage
 toolchain components plus `clang` and `lld`, without requiring Cranelift or
-`mold`. The local Netsuke routes put the configured
-tool directory first on `PATH`; CI keeps the binary path supplied by
-`setup-rust`'s `install-mold` input. The shared
-`scripts/build-tools-common.sh` helpers are scoped to the installer and
-checker so both commands read the same pins.
+`mold`. The local Netsuke routes put the configured tool directory first on
+`PATH`; CI keeps the binary path supplied by `setup-rust`'s `install-mold`
+input. The shared `scripts/build-tools-common.sh` helpers are scoped to the
+installer and checker so both commands read the same pins.
 `tests/build_standard_contract.rs` holds the Rust flag standard. It reads the
 configuration sources, the commands generated for each development target on a
 Linux host and a macOS host (each keeping the caller's own `RUSTFLAGS`) and for
-each coverage and release target on a Linux host, and the
-`setup-rust` steps of the CI workflows (each must pass `install-mold`), so a
-flag lost through a recipe or workflow edit fails there.
-`tests/build_tool_workflow_contract.rs` also scans workflow files for Linux
-Rust suites and requires an earlier pinned `setup-rust` mold installation. Its
-mutation cases cover absent, late, conditional, and soft-failing installation
-steps, plus later system-package installs that could shadow the pinned binary.
+each coverage and release target on a Linux host, and the `setup-rust` steps of
+the CI workflows (each must pass `install-mold`), so a flag lost through a
+recipe or workflow edit fails there. `tests/build_tool_workflow_contract.rs`
+also scans workflow files for Linux Rust suites and requires an earlier pinned
+`setup-rust` mold installation. Its mutation cases cover absent, late,
+conditional, and soft-failing installation steps, plus later system-package
+installs that could shadow the pinned binary.
 
 ### Markdown formatting and lint
 
 `netsuke build fmt` and `netsuke build check-fmt` use `mdtablefix` with
-Git-aware selection.
-Tracked Markdown and untracked files that Git does not ignore are included, so
-new documentation is formatted before staging; ignored generated files such as
-those under `target/` stay out of the selection. CI installs `mdtablefix` 0.6.0
-through the pinned shared action.
+Git-aware selection. Tracked Markdown and untracked files that Git does not
+ignore are included, so new documentation is formatted before staging; ignored
+generated files such as those under `target/` stay out of the selection. CI
+installs `mdtablefix` 0.6.0 through the pinned shared action.
 
 The CI action pins `markdownlint-cli2` to its bundled version. Local
 `netsuke build fmt` and `netsuke build markdownlint` invoke that version through

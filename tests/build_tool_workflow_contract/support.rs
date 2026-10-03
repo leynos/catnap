@@ -6,7 +6,7 @@ use serde_norway::Value;
 const SETUP_RUST: &str =
     "leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8";
 const GENERATE_COVERAGE: &str = "leynos/shared-actions/.github/actions/generate-coverage@";
-const INSTALL_CRANELIFT: &str = "make install-cranelift";
+const INSTALL_CRANELIFT: &str = "netsuke build install-cranelift";
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RunnerPlatform {
     Linux,
@@ -134,9 +134,11 @@ fn is_cranelift_setup(step: &Value) -> bool {
 }
 
 fn is_development_suite_step(step: &Value) -> bool {
-    step.get("run")
-        .and_then(Value::as_str)
-        .is_some_and(|run| run_invokes_rust_suite(run) && !run.contains("llvm-cov"))
+    step.get("run").and_then(Value::as_str).is_some_and(|run| {
+        run_invokes_rust_suite(run)
+            && !run.contains("llvm-cov")
+            && !run.contains("netsuke build coverage")
+    })
 }
 
 fn suite_setup_violations(
@@ -238,12 +240,12 @@ fn run_invokes_rust_suite(run: &str) -> bool {
         if command == "whitaker" {
             return true;
         }
-        if command == "make"
+        if command == "netsuke"
             && tokens
                 .iter()
                 .skip(index.saturating_add(1))
                 .take_while(|next| !is_shell_boundary(next))
-                .any(|next| matches!(clean_token(next), "test" | "lint"))
+                .any(|next| matches!(clean_token(next), "test" | "test-ui" | "lint" | "coverage"))
         {
             return true;
         }

@@ -22,7 +22,7 @@ const FAKE_TOOLS: [&str; 8] = [
     "yamllint",
     "actionlint",
     "mdtablefix",
-    "markdownlint-cli2",
+    "bunx",
     "uv",
     "nixie",
 ];
@@ -31,6 +31,7 @@ const FAKE_TOOLS: [&str; 8] = [
 struct ActionSandbox {
     directory: Dir,
     temporary_directory: TempDir,
+    tools_directory: TempDir,
     netsuke: PathBuf,
 }
 
@@ -39,17 +40,24 @@ impl ActionSandbox {
     fn new(with_nextest: bool) -> Result<Self, Box<dyn Error>> {
         let temporary_directory = tempfile::tempdir()?;
         let directory = Dir::open_ambient_dir(temporary_directory.path(), ambient_authority())?;
+        let tools_directory = tempfile::tempdir()?;
+        let tools = Dir::open_ambient_dir(tools_directory.path(), ambient_authority())?;
         directory.write("Netsukefile", MANIFEST)?;
         directory.write("README.md", "# Sandbox\n")?;
+        directory.create_dir_all("scripts")?;
+        for script in ["check-build-tools.sh", "install-build-tools.sh"] {
+            write_fake_tool(&directory, &format!("scripts/{script}"))?;
+        }
         for tool in FAKE_TOOLS {
-            write_fake_tool(&directory, tool)?;
+            write_fake_tool(&tools, tool)?;
         }
         if with_nextest {
-            write_fake_tool(&directory, "cargo-nextest")?;
+            write_fake_tool(&tools, "cargo-nextest")?;
         }
         Ok(Self {
             directory,
             temporary_directory,
+            tools_directory,
             netsuke: netsuke_binary()?,
         })
     }
@@ -69,7 +77,7 @@ impl ActionSandbox {
             .env(
                 "PATH",
                 env::join_paths([
-                    self.temporary_directory.path(),
+                    self.tools_directory.path(),
                     std::path::Path::new("/usr/bin"),
                     std::path::Path::new("/bin"),
                 ])?,
@@ -157,16 +165,24 @@ fn write_fake_tool(directory: &Dir, name: &str) -> Result<(), Box<dyn Error>> {
 /// Verify each action's command contract with the real manifest and fake tools.
 #[rstest]
 #[case::clean("clean", &["cargo\tclean"])]
-#[case::build("build", &["cargo\tbuild\t--bin\tcatnap"])]
-#[case::release("release", &["cargo\tbuild\t--release\t--bin\tcatnap"])]
-#[case::coverage("coverage", &["cargo\tllvm-cov\t--lcov\t--output-path\tlcov.info\t--all-targets\t--all-features"])]
-#[case::typecheck("typecheck", &["cargo\tcheck\t--all-targets\t--all-features"])]
+#[case::build("build", &["check-build-tools.sh", "cargo\tbuild\t--bin\tcatnap"])]
+#[case::release("release", &["cargo\t+stable\tbuild\t--release\t--bin\tcatnap"])]
+#[case::coverage("coverage", &["check-build-tools.sh\t--coverage-only", "cargo\tllvm-cov\t--lcov\t--output-path\tlcov.info\t--all-targets\t--all-features"])]
+#[case::typecheck("typecheck", &["check-build-tools.sh", "cargo\tcheck\t--all-targets\t--all-features"])]
+#[case::check_build_tools("check-build-tools", &["check-build-tools.sh"])]
+#[case::check_rust_toolchain("check-rust-toolchain", &["check-build-tools.sh\t--toolchain-only"])]
+#[case::check_coverage_tools("check-coverage-tools", &["check-build-tools.sh\t--coverage-only"])]
+#[case::install_build_tools("install-build-tools", &["install-build-tools.sh"])]
+#[case::install_cranelift("install-cranelift", &["install-build-tools.sh\t--cranelift-only"])]
+#[case::test_ui("test-ui", &["check-build-tools.sh", "cargo\ttest\t--test\tui"])]
 #[case::fmt("fmt", &[
-    "cargo\t+nightly\tfmt\t--all",
+    "check-build-tools.sh\t--toolchain-only",
+    "cargo\tfmt\t--all",
     "mdtablefix\t--in-place\t--git\t--include-untracked\t--wrap\t--renumber\t--breaks\t--ellipsis\t--fences",
-    "markdownlint-cli2\t--fix\t**/*.md",
+    "bunx\t--silent\tmarkdownlint-cli2@0.23.3\t--fix\t**/*.md",
 ])]
 #[case::check_fmt("check-fmt", &[
+    "check-build-tools.sh\t--toolchain-only",
     "cargo\tfmt\t--all\t--\t--check",
     "mdtablefix\t--check\t--git\t--include-untracked\t--wrap\t--renumber\t--breaks\t--ellipsis\t--fences",
 ])]
@@ -180,6 +196,7 @@ fn write_fake_tool(directory: &Dir, name: &str) -> Result<(), Box<dyn Error>> {
     "actionlint",
 ])]
 #[case::lint("lint", &[
+    "check-build-tools.sh",
     "cargo\tdoc\t--no-deps",
     "cargo\tclippy\t--all-targets\t--all-features\t--\t-D\twarnings",
     "whitaker\t--all\t--\t--all-targets\t--all-features",
@@ -187,11 +204,14 @@ fn write_fake_tool(directory: &Dir, name: &str) -> Result<(), Box<dyn Error>> {
     "actionlint",
 ])]
 #[case::markdownlint("markdownlint", &[
-    "uv\ttool\trun\t--python\t3.14\t--from\tgit+https://github.com/leynos/typos-config-builder.git@v0.1.1\ttypos-config-builder\tgate\t--repository\t.",
-    "markdownlint-cli2\t./README.md",
+    "uv\ttool\trun\t--python\t3.14\t--from\tgit+https://github.com/leynos/typos-config-builder.git@v0.1.3\ttypos-config-builder\tgate\t--repository\t.",
+    "bunx\t--silent\tmarkdownlint-cli2@0.23.3\t./README.md",
 ])]
 #[case::spelling("spelling", &[
-    "uv\ttool\trun\t--python\t3.14\t--from\tgit+https://github.com/leynos/typos-config-builder.git@v0.1.1\ttypos-config-builder\tgate\t--repository\t.",
+    "uv\ttool\trun\t--python\t3.14\t--from\tgit+https://github.com/leynos/typos-config-builder.git@v0.1.3\ttypos-config-builder\tgate\t--repository\t.",
+])]
+#[case::workflow_contracts("test-workflow-contracts", &[
+    "uv\ttool\trun\t--python\t3.13\t--from\tgit+https://github.com/leynos/shared-actions@a38feb9be25755c30eca5bda96bd3786a5b89c6b#subdirectory=packages/cv005-contracts\tcv005-contracts\tcheck\t--repository\t.",
 ])]
 #[case::nixie("nixie", &["nixie\t--no-sandbox"])]
 fn public_action_runs_expected_commands(#[case] action: &str, #[case] expected: &[&str]) {
@@ -220,7 +240,14 @@ fn public_action_runs_expected_commands(#[case] action: &str, #[case] expected: 
 #[case::check_fmt("check-fmt", "mdtablefix")]
 #[case::markdownlint("markdownlint", "uv")]
 #[case::spelling("spelling", "uv")]
+#[case::workflow_contracts("test-workflow-contracts", "uv")]
 #[case::nixie("nixie", "nixie")]
+#[case::check_build_tools("check-build-tools", "check-build-tools.sh")]
+#[case::check_rust_toolchain("check-rust-toolchain", "check-build-tools.sh")]
+#[case::check_coverage_tools("check-coverage-tools", "check-build-tools.sh")]
+#[case::install_build_tools("install-build-tools", "install-build-tools.sh")]
+#[case::install_cranelift("install-cranelift", "install-build-tools.sh")]
+#[case::test_ui("test-ui", "cargo")]
 fn public_action_propagates_tool_failure(#[case] action: &str, #[case] failing_tool: &str) {
     let sandbox = ActionSandbox::new(false).expect("create isolated Netsuke sandbox");
     let output = sandbox
@@ -238,9 +265,9 @@ fn public_action_propagates_tool_failure(#[case] action: &str, #[case] failing_t
 
 /// Ensure nextest is selected only when its executable is available.
 #[rstest]
-#[case::nextest(true, "cargo\tnextest\trun\t--all-targets\t--all-features")]
-#[case::cargo(false, "cargo\ttest\t--all-targets\t--all-features")]
-fn test_action_selects_available_runner(#[case] with_nextest: bool, #[case] expected: &str) {
+#[case::nextest(true, &["cargo\tnextest\trun\t--all-targets\t--all-features", "cargo\ttest\t--workspace\t--doc\t--all-features"])]
+#[case::cargo(false, &["cargo\ttest\t--all-targets\t--all-features"])]
+fn test_action_selects_available_runner(#[case] with_nextest: bool, #[case] expected: &[&str]) {
     let sandbox = ActionSandbox::new(with_nextest).expect("create isolated Netsuke sandbox");
     let output = sandbox.run(Some("test"), None).expect("run test action");
     assert!(
@@ -248,10 +275,16 @@ fn test_action_selects_available_runner(#[case] with_nextest: bool, #[case] expe
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(sandbox.commands().expect("read fake-tool log"), [expected]);
-    assert_eq!(
-        sandbox.environment().expect("read environment log"),
-        ["cargo\t-D warnings\t\t\t\t"]
+    let commands = sandbox.commands().expect("read fake-tool log");
+    let test_calls: Vec<&str> = commands.iter().skip(1).map(String::as_str).collect();
+    assert_eq!(test_calls, expected);
+    assert!(
+        sandbox
+            .environment()
+            .expect("read environment log")
+            .iter()
+            .filter(|record| record.starts_with("cargo\t"))
+            .all(|record| record.contains("-D warnings -Zthreads=8 -Zcodegen-backend=cranelift"))
     );
 }
 
@@ -266,15 +299,19 @@ fn default_action_runs_checks_in_declared_order() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(sandbox.commands().expect("read fake-tool log"), [
+        "check-build-tools.sh\t--toolchain-only",
         "cargo\tfmt\t--all\t--\t--check",
         "mdtablefix\t--check\t--git\t--include-untracked\t--wrap\t--renumber\t--breaks\t--ellipsis\t--fences",
+        "check-build-tools.sh",
         "cargo\tdoc\t--no-deps",
         "cargo\tclippy\t--all-targets\t--all-features\t--\t-D\twarnings",
         "whitaker\t--all\t--\t--all-targets\t--all-features",
         "yamllint\t.github/workflows",
         "actionlint",
         "cargo\tnextest\trun\t--all-targets\t--all-features",
-        "uv\ttool\trun\t--python\t3.14\t--from\tgit+https://github.com/leynos/typos-config-builder.git@v0.1.1\ttypos-config-builder\tgate\t--repository\t.",
+        "cargo\ttest\t--workspace\t--doc\t--all-features",
+        "uv\ttool\trun\t--python\t3.14\t--from\tgit+https://github.com/leynos/typos-config-builder.git@v0.1.3\ttypos-config-builder\tgate\t--repository\t.",
+        "uv\ttool\trun\t--python\t3.13\t--from\tgit+https://github.com/leynos/shared-actions@a38feb9be25755c30eca5bda96bd3786a5b89c6b#subdirectory=packages/cv005-contracts\tcv005-contracts\tcheck\t--repository\t.",
     ]);
 }
 
@@ -289,11 +326,13 @@ fn default_action_stops_at_first_failure() {
     assert_eq!(
         sandbox.commands().expect("read fake-tool log"),
         [
+            "check-build-tools.sh\t--toolchain-only",
             "cargo\tfmt\t--all\t--\t--check",
             concat!(
                 "mdtablefix\t--check\t--git\t--include-untracked\t--wrap\t--renumber\t--breaks",
                 "\t--ellipsis\t--fences",
             ),
+            "check-build-tools.sh",
             "cargo\tdoc\t--no-deps",
             "cargo\tclippy\t--all-targets\t--all-features\t--\t-D\twarnings",
             "whitaker\t--all\t--\t--all-targets\t--all-features",
@@ -303,7 +342,10 @@ fn default_action_stops_at_first_failure() {
 
 /// Check warning policy and linker flags at their command boundaries.
 #[rstest]
-#[case::typecheck("typecheck", "cargo\t-D warnings\t\t\t\t")]
+#[case::typecheck(
+    "typecheck",
+    "cargo\t-D warnings -Zthreads=8 -Zcodegen-backend=cranelift -Clink-arg=-fuse-ld=mold\t\t\t\t"
+)]
 #[case::coverage(
     "coverage",
     "cargo\t-D warnings -C link-arg=-fuse-ld=lld\t\t-fuse-ld=lld\t-fuse-ld=lld\tclang"
@@ -317,10 +359,8 @@ fn action_sets_expected_environment(#[case] action: &str, #[case] expected: &str
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(
-        sandbox.environment().expect("read environment log"),
-        [expected]
-    );
+    let environment = sandbox.environment().expect("read environment log");
+    assert_eq!(environment.last().map(String::as_str), Some(expected));
 }
 
 /// Rust linting must deny warnings in both rustdoc and Whitaker.
@@ -338,8 +378,9 @@ fn rust_lint_sets_warning_policy() {
     assert_eq!(
         sandbox.environment().expect("read environment log"),
         [
-            "cargo\t\t-D warnings\t\t\t",
-            "cargo\t\t\t\t\t",
+            "cargo\t-Zthreads=8 -Zcodegen-backend=cranelift -Clink-arg=-fuse-ld=mold\t-D \
+             warnings\t\t\t",
+            "cargo\t-Zthreads=8 -Zcodegen-backend=cranelift -Clink-arg=-fuse-ld=mold\t\t\t\t",
             "whitaker\t-D warnings\t\t\t\t",
         ]
     );
