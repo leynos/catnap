@@ -8,7 +8,7 @@
 // Coverage instruments the parent test crate with LLVM. trybuild starts
 // nested Cargo builds that reload Cranelift from `.cargo/config.toml`; that
 // backend cannot accept LLVM coverage flags. CI runs these tests separately
-// with `make test-ui` before its coverage step.
+// with `netsuke build test-ui` before its coverage step.
 /// Compiles and runs every display fixture, pinning public error message text.
 #[cfg_attr(
     coverage,

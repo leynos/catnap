@@ -14,6 +14,8 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       BUILD_PROFILE: debug
+      NETSUKE_TOOLCHAIN: nightly-2026-08-23
+      NETSUKE_VERSION: 0.1.0-beta4
       UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
       UV_TOOL_DIR: ${{ github.workspace }}/.uv-tools
       UV_TOOL_BIN_DIR: ${{ github.workspace }}/.uv-bin
@@ -33,9 +35,21 @@ jobs:
       - name: Install rust-analyzer
         # The shared setup action installs build components but not this one.
         run: rustup component add rust-analyzer
-      - name: Install Cranelift backend
-        run: make install-cranelift
-      - name: Install clang and lld
+      - name: Cache Netsuke
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.cargo/bin/netsuke
+          key: netsuke-${{ runner.os }}-${{ runner.arch }}-${{ env.NETSUKE_VERSION }}-${{ env.NETSUKE_TOOLCHAIN }}
+      - name: Install Netsuke from crates.io
+        run: |
+          set -euo pipefail
+          if netsuke --version 2>/dev/null | grep --fixed-strings --quiet "${NETSUKE_VERSION}"; then
+            exit 0
+          fi
+          rustup toolchain install "${NETSUKE_TOOLCHAIN}" --profile minimal
+          cargo "+${NETSUKE_TOOLCHAIN}" install --locked \
+            netsuke-build --version "=${NETSUKE_VERSION}"
+      - name: Install clang, lld, and Ninja
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
@@ -43,16 +57,17 @@ jobs:
           # setup-rust installs mold (install-mold above); coverage uses lld for llvm-tools
           # compatibility.
           sudo apt-get update \
-            && sudo apt-get install --yes --no-install-recommends clang lld
+            && sudo apt-get install --yes --no-install-recommends clang lld ninja-build
+      - name: Install Cranelift backend
+        run: netsuke build install-cranelift
       - name: Install mdtablefix
-        # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
+        # `netsuke build check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.
         uses: leynos/shared-actions/.github/actions/install-mdtablefix@d4d248bbbecdcf7b4f5bc79ffd4d6caee370bd79
         with:
           version: "0.6.0"
-
       - name: Format
-        run: make check-fmt
+        run: netsuke build check-fmt
       - name: Markdown lint
         uses: DavidAnson/markdownlint-cli2-action@63bcb6427c9446dfcbcb0c92a1d9bd4323dec58a
         with:
@@ -62,7 +77,7 @@ jobs:
         with:
           python-version: '3.14'
       - name: Check the CV-005 contracts
-        run: make test-workflow-contracts
+        run: netsuke build test-workflow-contracts
       - name: Cache yamllint
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
@@ -116,7 +131,7 @@ jobs:
           bash "${ACTIONLINT_INSTALLER_PATH}" "${ACTIONLINT_VERSION}"
         shell: bash
       - name: Spelling
-        run: make spelling
+        run: netsuke build spelling
       - name: Install the stable toolchain
         # tests/stable_cargo_config.rs runs stable Cargo, the toolchain the
         # release builds with, against .cargo/config.toml.
@@ -124,11 +139,11 @@ jobs:
       - name: Install test runner
         run: cargo binstall --no-confirm cargo-nextest
       - name: Test public error UI contracts
-        run: make test-ui
+        run: netsuke build test-ui
       - name: Install Whitaker
         uses: leynos/shared-actions/.github/actions/install-whitaker@ff1dd759dfffc0db3459e30e833f52437ee62b57
       - name: Lint
-        run: /usr/bin/make ACTIONLINT="$GITHUB_WORKSPACE/actionlint" lint
+        run: ACTIONLINT="$GITHUB_WORKSPACE/actionlint" netsuke build lint
       - name: Log coverage linker configuration
         run: |
           echo "Coverage linker: clang"

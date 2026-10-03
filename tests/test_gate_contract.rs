@@ -1,47 +1,52 @@
-//! Keeps doctests in the test gate when CI uses cargo-nextest.
+//! Keeps doctests in the Netsuke test gate when CI uses cargo-nextest.
 
-use std::process::Command;
+use std::{error::Error, io};
 
-use anyhow::{Context, Result, ensure};
+use serde_norway::Value;
 
-#[test]
-fn nextest_test_path_runs_workspace_doctests_after_the_suite() -> Result<()> {
-    let stdout = make_test_output("nextest run")?;
-    let nextest_position = stdout
-        .find("cargo nextest run")
-        .context("Make output should include the nextest run")?;
-    let doctest_position = stdout
-        .find("cargo test --workspace --doc --all-features")
-        .context("Make output should include workspace doctests")?;
-    ensure!(
-        nextest_position < doctest_position,
-        "workspace doctests must follow nextest: {stdout}"
-    );
-    Ok(())
+/// Read the ordered commands from the public test action.
+fn test_commands() -> Result<Vec<String>, Box<dyn Error>> {
+    let manifest: Value = serde_norway::from_str(include_str!("../Netsukefile"))?;
+    let commands = manifest
+        .get("actions")
+        .and_then(Value::as_sequence)
+        .ok_or_else(|| io::Error::other("Netsukefile has no actions sequence"))?
+        .iter()
+        .find(|action| action.get("name").and_then(Value::as_str) == Some("test"))
+        .and_then(|action| action.get("command"))
+        .and_then(Value::as_sequence)
+        .ok_or_else(|| io::Error::other("test action has no command list"))?
+        .iter()
+        .map(|command| {
+            command
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| io::Error::other("test command is not a string"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(commands)
 }
 
+/// Nextest must run first, then a guarded workspace doctest command.
 #[test]
-fn cargo_fallback_keeps_its_default_doctests_without_a_second_run() -> Result<()> {
-    let stdout = make_test_output("test")?;
-    ensure!(
-        stdout.contains("cargo test --all-targets --all-features"),
-        "Make output should include the Cargo fallback: {stdout}"
-    );
-    ensure!(
-        !stdout.contains("--doc"),
-        "the Cargo fallback should not schedule doctests twice: {stdout}"
-    );
-    Ok(())
+fn nextest_test_path_runs_workspace_doctests_after_the_suite() {
+    let commands = test_commands().expect("read test action commands");
+    let [suite, doctests] = commands.as_slice() else {
+        panic!("test action must have two commands");
+    };
+    assert!(suite.contains("nextest run{% else %}test{% endif %}"));
+    assert!(doctests.starts_with("if command -v cargo-nextest"));
+    assert!(doctests.contains("cargo test --workspace --doc --all-features"));
 }
 
-fn make_test_output(test_command: &str) -> Result<String> {
-    let command = format!("TEST_CMD={test_command}");
-    let output = Command::new("make")
-        .args(["-n", "-B", "test"])
-        .arg(command)
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .output()
-        .context("running `make -n -B test`")?;
-    ensure!(output.status.success(), "`make -n -B test` failed");
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+/// The fallback uses Cargo's ordinary doctest run, without a second one.
+#[test]
+fn cargo_fallback_keeps_its_default_doctests_without_a_second_run() {
+    let commands = test_commands().expect("read test action commands");
+    let [suite, doctests] = commands.as_slice() else {
+        panic!("test action must have two commands");
+    };
+    assert!(suite.contains("{% else %}test{% endif %}"));
+    assert!(suite.contains("--all-targets --all-features"));
+    assert!(doctests.contains("if command -v cargo-nextest"));
 }

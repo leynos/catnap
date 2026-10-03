@@ -55,7 +55,7 @@ install_mold() {
     --connect-timeout "$CURL_CONNECT_TIMEOUT" \
     --speed-limit "$CURL_MIN_BYTES_PER_SECOND" --speed-time "$CURL_STALL_SECONDS" \
     --output "$workdir/$name" "$url" ||
-    fail "failed to download $name; retry with: make install-build-tools"
+    fail "failed to download $name; retry with: netsuke build install-build-tools"
   verify_mold_archive "$workdir/$name" "$name"
 
   # The verified release archive has a versioned top-level directory; stripping
@@ -64,7 +64,7 @@ install_mold() {
   tar --extract --gzip --strip-components=1 --directory "$BUILD_TOOLS_PREFIX" --file "$workdir/$name" ||
     fail "failed to unpack $name into $BUILD_TOOLS_PREFIX"
   note "installed mold $version into $BUILD_TOOLS_PREFIX"
-  note "put $BUILD_TOOLS_PREFIX/bin first on PATH when not using the make targets"
+  note "put $BUILD_TOOLS_PREFIX/bin first on PATH when not using Netsuke"
 }
 
 install_toolchain() {
@@ -80,7 +80,7 @@ install_toolchain() {
   fi
   note "installing toolchain $toolchain"
   rustup "${arguments[@]}" ||
-    fail "failed to install toolchain $toolchain; retry with: make install-build-tools"
+    fail "failed to install toolchain $toolchain; retry with: netsuke build install-build-tools"
 }
 
 install_cranelift_component() {
@@ -91,7 +91,7 @@ install_cranelift_component() {
   toolchain=$(pinned_toolchain) || return 1
   note "installing $CRANELIFT_COMPONENT for $toolchain"
   rustup component add "$CRANELIFT_COMPONENT" --toolchain "$toolchain" ||
-    fail "failed to install $CRANELIFT_COMPONENT for $toolchain; retry with: make install-cranelift"
+    fail "failed to install $CRANELIFT_COMPONENT for $toolchain; retry with: netsuke build install-cranelift"
 }
 
 main() {
@@ -109,7 +109,7 @@ main() {
   toolchain_pin=$(pinned_toolchain) || return 1
   install_mold "$mold_pin"
   install_toolchain "$toolchain_pin"
-  note 'ready; verify with: make check-build-tools'
+  note 'ready; verify with: netsuke build check-build-tools'
 }
 
 main "$@"

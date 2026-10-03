@@ -1,9 +1,6 @@
 //! Consumer contracts for the pinned Whitaker action and the local lint gate.
 
-use std::{
-    error::Error,
-    process::{Command, Output},
-};
+use std::{error::Error, process::Output};
 
 use rstest::rstest;
 
@@ -192,11 +189,13 @@ fn whitaker_installation_precedes_the_coverage_suite() {
     );
 }
 
-/// A failed Whitaker invocation must stop `make lint` before workflow linters.
+/// A failed Whitaker invocation must stop `netsuke build lint` before workflow linters.
 #[rstest]
 fn lint_propagates_a_failing_whitaker(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
-    let output = sandbox.run_lint(Some("whitaker")).expect("run make lint");
+    let output = sandbox
+        .run_lint(Some("whitaker"))
+        .expect("run Netsuke lint");
     assert!(!output.status.success(), "failed Whitaker was ignored");
     let invocations = sandbox.invocations().expect("read fake tool calls");
     assert!(
@@ -216,8 +215,8 @@ fn lint_propagates_a_failing_whitaker(lint_sandbox: Result<LintSandbox, Box<dyn 
 #[rstest]
 fn lint_keeps_dev_flags_out_of_whitaker(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
-    let output = sandbox.run_lint(None).expect("run make lint");
-    assert!(output.status.success(), "make lint failed");
+    let output = sandbox.run_lint(None).expect("run Netsuke lint");
+    assert!(output.status.success(), "Netsuke lint failed");
     let flags = sandbox
         .directory
         .read_to_string("whitaker-rustflags.log")
@@ -225,16 +224,14 @@ fn lint_keeps_dev_flags_out_of_whitaker(lint_sandbox: Result<LintSandbox, Box<dy
     assert_eq!(flags.trim(), "-D warnings");
 }
 
-/// `all` must not overlap its gates when a caller supplies Make's `-j` flag.
+/// `all` must not overlap its gates under Netsuke's serial dependency order.
 #[rstest]
-fn all_gates_stay_sequential_under_parallel_make(
-    lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
-) {
+fn all_gates_stay_sequential_under_netsuke(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
-    let output = run_fake_all(&sandbox, None).expect("run fake make all");
+    let output = run_fake_all(&sandbox, None).expect("run fake Netsuke all");
     assert!(
         output.status.success(),
-        "make -j4 all failed: {}",
+        "netsuke build all failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
@@ -250,8 +247,9 @@ fn all_gates_stay_sequential_under_parallel_make(
         "whitaker\t--all",
         "yamllint\t.github/workflows",
         "actionlint",
-        "cargo\ttest",
-        "spelling\tgate",
+        "cargo\tnextest\trun",
+        "cargo\ttest\t--workspace\t--doc",
+        "uv\ttool\trun\t--python\t3.14",
         "uv\ttool\trun\t--python\t3.13",
     ];
     let positions: Vec<usize> = expected
@@ -272,19 +270,19 @@ fn all_gates_stay_sequential_under_parallel_make(
     );
 }
 
-/// A failing Whitaker stops `all` before test or spelling, even with `-j`.
+/// A failing Whitaker stops `all` before test or spelling.
 #[rstest]
 fn all_stops_after_whitaker_fails(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
-    let output = run_fake_all(&sandbox, Some("whitaker")).expect("run failing make all");
+    let output = run_fake_all(&sandbox, Some("whitaker")).expect("run failing Netsuke all");
     assert!(
         !output.status.success(),
-        "make all ignored Whitaker failure"
+        "Netsuke all ignored Whitaker failure"
     );
     let calls = sandbox.invocations().expect("read fake gate calls");
     assert!(calls.iter().any(|call| call.starts_with("whitaker\t--all")));
     assert!(!calls.iter().any(|call| call.starts_with("cargo\ttest")));
-    assert!(!calls.iter().any(|call| call.starts_with("spelling\tgate")));
+    assert!(!calls.iter().any(|call| call.starts_with("uv\ttool\trun")));
 }
 
 /// Executes the public composite target with fake gates and an overlap marker.
@@ -293,30 +291,7 @@ fn run_fake_all(
     failing_tool: Option<&str>,
 ) -> Result<Output, Box<dyn Error>> {
     write_fake_tool(&sandbox.directory, "mdtablefix")?;
-    write_fake_tool(&sandbox.directory, "spelling")?;
     write_fake_tool(&sandbox.directory, "uv")?;
     sandbox.directory.create_dir("gate-lock")?;
-    let mut command = Command::new("make");
-    command
-        .current_dir(super::repository_root())
-        .args(["-j4", "all"])
-        .arg(format!("CARGO={}", sandbox.tool_command("cargo")))
-        .arg(format!("WHITAKER={}", sandbox.tool_command("whitaker")))
-        .arg(format!("YAMLLINT={}", sandbox.tool_command("yamllint")))
-        .arg(format!("ACTIONLINT={}", sandbox.tool_command("actionlint")))
-        .arg(format!("MDTABLEFIX={}", sandbox.tool_command("mdtablefix")))
-        .arg(format!(
-            "TYPOS_CONFIG_BUILDER={}",
-            sandbox.tool_command("spelling")
-        ))
-        .arg(format!("UV={}", sandbox.tool_command("uv")))
-        .env("LINT_INVOCATION_LOG", &sandbox.invocation_log)
-        .env(
-            "GATE_LOCK_DIR",
-            sandbox.temporary_directory.path().join("gate-lock"),
-        );
-    if let Some(tool) = failing_tool {
-        command.env("FAILING_TOOL", tool);
-    }
-    Ok(command.output()?)
+    sandbox.run_netsuke("all", failing_tool, &sandbox.tool_command("yamllint"))
 }

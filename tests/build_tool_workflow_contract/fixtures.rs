@@ -9,8 +9,8 @@ const VALID_WORKFLOW: &str = r"jobs:
       - uses: leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
           install-mold: true
-      - run: make install-cranelift
-      - run: cargo test
+      - run: netsuke build install-cranelift
+      - run: netsuke build test
 ";
 
 #[derive(Clone, Copy)]
@@ -67,7 +67,7 @@ pub(super) fn mutate_valid_workflow(mutation: Mutation) -> Result<Value, String>
 }
 
 fn add_suite_without_setup(workflow: &mut Value) -> Result<(), String> {
-    let suite = yaml_value("runs-on: ubuntu-latest\nsteps:\n  - run: make test")?;
+    let suite = yaml_value("runs-on: ubuntu-latest\nsteps:\n  - run: netsuke build test")?;
     workflow
         .get_mut("jobs")
         .and_then(Value::as_mapping_mut)

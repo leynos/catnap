@@ -56,7 +56,7 @@ fn ci_installs_rust_analyzer_before_running_the_lint_suite() {
         .position(|step| {
             step.get("run")
                 .and_then(Value::as_str)
-                .is_some_and(|run| run.starts_with("/usr/bin/make ") && run.ends_with(" lint"))
+                .is_some_and(|run| run.ends_with("netsuke build lint"))
         })
         .expect("CI lint step");
     let install_step = steps
@@ -70,6 +70,41 @@ fn ci_installs_rust_analyzer_before_running_the_lint_suite() {
     assert!(
         install_step.get("if").is_none() && install_step.get("continue-on-error").is_none(),
         "rust-analyzer installation must be unconditional and fail the job"
+    );
+}
+
+/// Netsuke needs Ninja before CI can run its Cranelift installer action.
+#[test]
+fn ci_installs_ninja_before_running_netsuke() {
+    let root = repository_root().expect("open repository");
+    let source = root
+        .read_to_string(".github/workflows/ci.yml")
+        .expect("read CI workflow");
+    let workflow: Value = serde_norway::from_str(&source).expect("parse CI workflow");
+    let steps = workflow
+        .get("jobs")
+        .and_then(|jobs| jobs.get("build-test"))
+        .and_then(|job| job.get("steps"))
+        .and_then(Value::as_sequence)
+        .expect("CI build-test steps");
+    let ninja_index = steps
+        .iter()
+        .position(|step| {
+            step.get("run").and_then(Value::as_str).is_some_and(|run| {
+                run.contains("install --yes --no-install-recommends clang lld ninja-build")
+            })
+        })
+        .expect("CI Ninja installation step");
+    let netsuke_index = steps
+        .iter()
+        .position(|step| {
+            step.get("run").and_then(Value::as_str) == Some("netsuke build install-cranelift")
+        })
+        .expect("first Netsuke action");
+
+    assert!(
+        ninja_index < netsuke_index,
+        "install Ninja before invoking Netsuke"
     );
 }
 
@@ -92,7 +127,7 @@ fn ci_runs_ui_contract_tests_before_coverage() {
         .expect("CI test runner installation step");
     let ui_index = steps
         .iter()
-        .position(|step| step.get("run").and_then(Value::as_str) == Some("make test-ui"))
+        .position(|step| step.get("run").and_then(Value::as_str) == Some("netsuke build test-ui"))
         .expect("CI UI test step");
     let coverage_index = steps
         .iter()

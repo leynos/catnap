@@ -32,9 +32,9 @@ fn missing_cranelift_component_reports_install_hint(
         .expect("write fake rustup without Cranelift");
 
     let output = sandbox
-        .run_make(&["check-build-tools"])
-        .expect("run make check-build-tools");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["check-build-tools"])
+        .expect("run netsuke build check-build-tools");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(!output.status.success(), "check unexpectedly succeeded");
     assert!(
@@ -44,7 +44,7 @@ fn missing_cranelift_component_reports_install_hint(
         "checker did not identify the missing Cranelift component: {stderr}"
     );
     assert!(
-        stderr.contains("install it with: make install-build-tools"),
+        stderr.contains("install it with: netsuke build install-build-tools"),
         "failure did not explain how to install the pinned toolchain: {stderr}"
     );
 }
@@ -71,9 +71,9 @@ fn missing_rust_analyzer_reports_install_hint(
         .expect("write fake rustup without rust-analyzer");
 
     let output = sandbox
-        .run_make(&["check-build-tools"])
-        .expect("run make check-build-tools");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["check-build-tools"])
+        .expect("run netsuke build check-build-tools");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(!output.status.success(), "check unexpectedly succeeded");
     assert!(
@@ -83,7 +83,7 @@ fn missing_rust_analyzer_reports_install_hint(
         "checker did not identify the missing rust-analyzer component: {stderr}"
     );
     assert!(
-        stderr.contains("install it with: make install-build-tools"),
+        stderr.contains("install it with: netsuke build install-build-tools"),
         "failure did not explain how to install the pinned tools: {stderr}"
     );
 }
@@ -109,9 +109,9 @@ fn coverage_prerequisites_do_not_require_the_development_backend(
         .expect("write fake rustup without Cranelift");
 
     let output = sandbox
-        .run_make(&["check-coverage-tools"])
-        .expect("run make check-coverage-tools");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["check-coverage-tools"])
+        .expect("run netsuke build check-coverage-tools");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(output.status.success(), "coverage check failed: {stderr}");
 }

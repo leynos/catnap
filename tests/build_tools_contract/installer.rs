@@ -24,9 +24,9 @@ fn installer_passes_the_pinned_toolchain_components_to_rustup(
         .expect("write recording rustup");
 
     let output = sandbox
-        .run_make(&["install-build-tools"])
-        .expect("run make install-build-tools");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["install-build-tools"])
+        .expect("run netsuke build install-build-tools");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(output.status.success(), "installer failed: {stderr}");
     assert_eq!(
@@ -47,7 +47,7 @@ fn installer_passes_the_pinned_toolchain_components_to_rustup(
 }
 
 #[rstest]
-fn make_installs_only_the_pinned_cranelift_component(
+fn netsuke_installs_only_the_pinned_cranelift_component(
     build_tools_sandbox: Result<BuildToolsSandbox, Box<dyn Error>>,
 ) {
     let sandbox = build_tools_sandbox.expect("create build-tools sandbox");
@@ -56,9 +56,9 @@ fn make_installs_only_the_pinned_cranelift_component(
         .expect("write recording rustup");
 
     let output = sandbox
-        .run_make(&["install-cranelift"])
-        .expect("run make install-cranelift");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["install-cranelift"])
+        .expect("run netsuke build install-cranelift");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(
         output.status.success(),
@@ -93,7 +93,7 @@ fn installer_verifies_the_mold_archive_before_unpacking(
     let output = sandbox
         .run_installer_with_checksum(FIXTURE_ARCHIVE_SHA256)
         .expect("run installer with valid checksum");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(output.status.success(), "installer failed: {stderr}");
     assert_eq!(
@@ -121,7 +121,7 @@ fn installer_refuses_a_mold_archive_with_the_wrong_checksum(
             "0000000000000000000000000000000000000000000000000000000000000000",
         )
         .expect("run installer with wrong checksum");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(
         !output.status.success(),
