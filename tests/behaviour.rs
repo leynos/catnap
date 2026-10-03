@@ -1,5 +1,6 @@
 //! Behavioural tests for GNU-like sleep command parsing.
 
+use anyhow::Context;
 use catnap::{CliError, CommandAction, parse_command};
 use rstest::fixture;
 use rstest_bdd::{ScenarioState as _, Slot};
@@ -29,13 +30,29 @@ fn sleep_operands(sleep_state: &SleepState, operands: &str) {
     );
 }
 
-#[when("the sleep command is parsed")]
-fn parse_sleep_command(sleep_state: &SleepState) {
-    let operands = sleep_state.operands.get().unwrap_or_default();
+#[when(expr = "the sleep command is parsed", result)]
+fn parse_sleep_command(sleep_state: &SleepState) -> anyhow::Result<()> {
+    let operands = sleep_state
+        .operands
+        .get()
+        .context("sleep operands must be supplied before parsing")?;
     let args = std::iter::once("catnap".to_owned())
         .chain(operands)
         .collect::<Vec<_>>();
     store_parse_result(sleep_state, parse_command(args));
+    Ok(())
+}
+
+#[test]
+fn parsing_without_sleep_operands_fails_the_step() {
+    let state = SleepState::default();
+    let error = parse_sleep_command(&state).expect_err("missing operands must fail the step");
+    assert!(
+        error
+            .to_string()
+            .contains("sleep operands must be supplied"),
+        "unexpected missing-operand error: {error}"
+    );
 }
 
 #[then("the parsed duration is {seconds:u64} seconds")]

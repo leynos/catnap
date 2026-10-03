@@ -1,3 +1,4 @@
+---
 name: Coverage (main)
 
 # Main owns both persistent coverage outputs: the CodeScene upload and the
@@ -52,18 +53,18 @@ jobs:
         # toolchain setup.
         uses: leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8
         with:
+          install-mold: 'true'
           expect-cache: any
           # One sccache lane with ci.yml's build-test: only a push to main saves,
           # so pull requests warm from the lane main's publisher writes.
           sccache-cache-discriminator: coverage
       - name: Install coverage linkers
-        # The same packages as the pull-request lane: `.cargo/config.toml`
-        # names clang and mold, and the coverage step below selects lld.
+        # The pull-request lane's clang/lld packages; setup-rust supplies mold.
         run: |
           set -euo pipefail
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update \
-            && sudo apt-get install --yes --no-install-recommends clang lld mold
+            && sudo apt-get install --yes --no-install-recommends clang lld
       - name: Test and Measure Coverage
         # The same action, linker environment, format, output path and default
         # baseline files as the pull-request lane, so the figure written here

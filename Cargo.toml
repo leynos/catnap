@@ -86,6 +86,8 @@ result_large_err                    = "deny"
 
 [lints.rust]
 missing_docs                        = "deny"
+# cargo-llvm-cov uses this cfg to select tests incompatible with instrumentation.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage)"] }
 
 [lints.rustdoc]
 missing_crate_level_docs            = "deny"
@@ -104,4 +106,5 @@ rstest-bdd-macros = "0.6.0"
 serde_json = "1.0.150"
 serde_norway = "0.9.42"
 tempfile = "3.27.0"
+toml = "1.1.4"
 trybuild = "1.0.120"

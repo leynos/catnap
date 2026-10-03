@@ -1,16 +1,25 @@
 # Developer Guide
 
-This guide explains the contributor workflow for the `catnap` command.
+This guide explains the contributor workflow for the `catnap` command. The
+accepted [Cranelift build decision](adr/0001-cranelift-development-backend.md)
+records the compatibility evidence and limits behind the development default.
 
 ## Local Workflow
 
 Use `make all` as the public entrypoint for formatting, linting, and tests.
-`make lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint.
-`make test` prefers `cargo nextest run` and falls back to `cargo test` when
-cargo-nextest is not available. Because `cargo nextest run` does not execute
-doctests, a nextest-backed `make test` run skips them; run `cargo test --doc`
-separately as a required additional step when nextest is present.
-`make coverage` uses `cargo llvm-cov` with `lld`.
+`make lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint. Whitaker
+runs with warnings denied, without the development frontend and linker flags.
+CI installs its rolling suite through the pinned shared `install-whitaker`
+action, which verifies the default installer binary and refuses a source-build
+fallback. The suite version is not overridden. `make all` keeps its gates
+sequential even when invoked with `-j`. The fake `make -j4 all` runner in
+`tests/workflow_lint/whitaker.rs` is local to the Whitaker consumer contract;
+it exercises gate order and failure without replacing the repository's real
+checks. `make test` prefers `cargo nextest run` and falls back to `cargo test`
+when cargo-nextest is not available. Since nextest does not execute doctests,
+the nextest route follows with `cargo test --workspace --doc --all-features`;
+the Cargo fallback runs its normal doctests. `make coverage` uses
+`cargo llvm-cov` with `lld`.
 
 ### Coverage publication
 
@@ -93,24 +102,127 @@ tooling expects LLVM-compatible linker behaviour.
 Install `clang`, `lld`, and `mold` before running the full generated workflow
 locally on Linux.
 
-### Cranelift exception
+### The build standard
 
-Cranelift is not the development-profile codegen backend. The repository pins
-`nightly-2026-05-28`, but the release workflow builds with
-`cross +stable build --release`, which reads `.cargo/config.toml` on a stable
-toolchain. Stable Cargo refuses a `[profile.dev] codegen-backend` key ("config
-profile `dev` is not valid") and stops, so selecting the backend there breaks
-every release build; it broke the v0.1.0 release (recorded 2026-09-29).
-`tests/build_backend_contract.rs` fails if a `codegen-backend` key returns to
-the configuration while the release still builds on `+stable`.
-`tests/stable_cargo_config.rs` asks stable Cargo itself, through
-`rustup run stable cargo build --release --bin no-such-bin`: stable Cargo
-resolves every configured profile before it looks up the target, so a refused
-configuration and an accepted one differ in the message, and nothing compiles.
-The probe must run on stable, because a nightly Cargo accepts a backend that
-stable refuses. The test therefore needs the stable toolchain installed
-(`rustup toolchain install stable --profile minimal`); CI installs it before
-the tests run. Revisit if the release moves to the pinned nightly.
+Development, test, lint, and typecheck builds use Cranelift
+(`-Zcodegen-backend=cranelift`) and the parallel `rustc` frontend
+(`-Zthreads=8`), plus the `mold` linker on Linux (`-Clink-arg=-fuse-ld=mold`).
+These defaults live in `.cargo/config.toml`, which Cargo discovers on its own,
+so a bare `cargo build` gets them. The pinned toolchain includes the Cranelift
+component and `rust-analyzer` for editor integration. `mold` ships for Linux
+only, so the linker flag lives in a Linux-only table and macOS and Windows keep
+their platform linker. Cargo selects one `rustflags` source rather than merging
+them, so every source repeats the development flags apart from the linker.
+
+An assigned `RUSTFLAGS` replaces the configuration's flags, so the Makefile
+recipes that set it compose the standard's flags onto any inherited value (CI's
+`setup-rust` exports one). Two builds are deliberately excluded: coverage
+assigns `RUSTFLAGS` without the fast flags, because a measurement should not
+depend on them, and the release recipe and workflow keep the platform linker,
+because they assign `RUSTFLAGS` (even an empty value displaces the
+configuration). This also keeps nightly-only Cranelift and frontend flags away
+from stable release builds. Cargo has no per-profile `rustflags`, so a direct
+`cargo build --release` takes the configuration's flags unless `RUSTFLAGS` is
+assigned too.
+
+For screen readers: This flowchart shows that unassigned `RUSTFLAGS` use
+Cargo's configuration, development commands compose inherited flags with the
+standard, coverage uses its own flags, and release uses empty flags.
+Development builds use the parallel frontend and select `mold` only on Linux.
+
+```mermaid
+flowchart TD
+    Start[Build or test command] --> Assigned{RUSTFLAGS assigned?}
+    Assigned -->|No| Config[Cargo config defaults]
+    Assigned -->|Development path| Compose[Compose inherited flags with STANDARD_RUSTFLAGS]
+    Assigned -->|Coverage| Coverage[Use coverage-specific flags]
+    Assigned -->|Release| Release[Use empty RUSTFLAGS]
+    Config --> Fast[Parallel rustc frontend]
+    Compose --> Fast
+    Fast --> Linux{Linux?}
+    Linux -->|Yes| Mold[Use mold linker]
+    Linux -->|No| Platform[Use platform linker]
+    Coverage --> Platform
+    Release --> Stable[Stable Cargo and platform linker]
+```
+
+_Figure 1: Build-command `RUSTFLAGS` routing and platform linker selection._
+
+On Linux, install `clang` and `lld` with the operating system's package
+manager, then run `make install-build-tools` to install the pinned nightly with
+its requested components, including `rust-analyzer` and Cranelift, and the
+checksum-verified `mold` release. CI's shared Rust setup action has a fixed
+component list, so `rustup component add rust-analyzer` and
+`make install-cranelift` add the missing components before any development
+build. `make check-build-tools` verifies the nightly and its components,
+`clang`, and the pinned `mold` version before development, test, lint, and
+typecheck builds. Formatting and coverage targets are checked separately:
+formatting checks the toolchain and its requested components, while coverage
+checks its toolchain components other than Cranelift, `clang`, and `lld`
+without requiring `mold`. The local Make routes put `$(BUILD_TOOLS_PREFIX)/bin`
+first on `PATH`; CI keeps the binary path supplied by `setup-rust`'s
+`install-mold` input. The shared `scripts/build-tools-common.sh` helpers are
+scoped to the installer and checker so both commands read the same pins.
+`tests/build_standard_contract.rs` holds the Rust flag standard. It reads the
+configuration sources, the commands `make -n` prints for each development
+target on a Linux host and a macOS host (each keeping the caller's own
+`RUSTFLAGS`) and for each coverage and release target on a Linux host, and the
+`setup-rust` steps of the CI workflows (each must pass `install-mold`), so a
+flag lost through a recipe or workflow edit fails there.
+`tests/build_tool_workflow_contract.rs` also scans workflow files for Linux
+Rust suites and requires an earlier pinned `setup-rust` mold installation. Its
+mutation cases cover absent, late, conditional, and soft-failing installation
+steps, plus later system-package installs that could shadow the pinned binary.
+
+### Markdown formatting and lint
+
+`make fmt` and `make check-fmt` use `mdtablefix` with Git-aware selection.
+Tracked Markdown and untracked files that Git does not ignore are included, so
+new documentation is formatted before staging; ignored generated files such as
+those under `target/` stay out of the selection. CI installs `mdtablefix` 0.6.0
+through the pinned shared action.
+
+The Makefile pins `markdownlint-cli2` to the version bundled by the CI action.
+Local `make fmt` and `make markdownlint` invoke that version through `bunx`, so
+the formatter and linter use the same rule implementation as CI. Install Bun for
+`make fmt` and `make markdownlint`, and install `mdtablefix` for `make fmt` and
+`make check-fmt`.
+
+### Cold-cache allowance for the trybuild tests
+
+`.config/nextest.toml` gives each test 180 s and gives the `ui` tests three
+allowed timeouts. They run nested Cargo builds that compile the whole
+dependency graph, and a pull request has no warm sccache directory until the
+default branch has written one (`setup-rust` owns that directory and only a
+push to the default branch writes it). Before that cache exists, the nested
+build alone can exceed 180 s on a GitHub-hosted runner.
+
+The coverage action marks the two trybuild tests ignored because their nested
+Cargo processes reload the Cranelift development flags while LLVM coverage adds
+`-C instrument-coverage`, which Cranelift cannot use. CI runs the same UI tests
+with `make test-ui` before starting coverage, so they still gate pull requests;
+`make test` includes them in ordinary local validation.
+
+### Cranelift development backend
+
+The accepted [Cranelift decision](adr/0001-cranelift-development-backend.md)
+uses rustc's `-Zcodegen-backend=cranelift` flag for development builds. Cargo's
+`[profile.dev] codegen-backend` key remains forbidden while release jobs use
+stable Cargo: that profile key is an unstable Cargo setting and stable Cargo
+rejects the repository configuration. The release jobs instead set `RUSTFLAGS`
+to an empty value, which displaces the nightly flags in `.cargo/config.toml`
+before stable rustc runs. The measured `aarch64-unknown-linux-gnu` Cross
+release build passed with that exact override and the image's `cc` linker.
+
+`tests/build_backend_contract.rs` rejects profile-level backend keys while the
+release workflow uses stable. `tests/release_workflow.rs` requires empty
+`RUSTFLAGS` on both stable build steps, and
+`tests/cranelift_backend_contract.rs` checks the development flag, pinned
+component, and Make commands. The compatibility experiment covers one stable
+Cross target; a workflow dispatch remains responsible for proving the full
+release matrix. Cranelift's preview backend has unsupported language and
+platform features, so keep coverage on LLVM and revisit this decision if the
+application adds a feature that the backend cannot compile.
 
 ### Release builds
 
@@ -236,11 +348,11 @@ non-breaking change for downstream crates.
 Run the focused harness with:
 
 ```sh
-cargo test --test ui
+make test-ui
 ```
 
-`make test` also discovers the harness and is the required pre-commit and CI
-entrypoint.
+`make test` also discovers the harness and is the required local pre-commit
+entrypoint. CI runs `make test-ui` separately before the coverage step.
 
 #### Updating display fixtures
 
@@ -258,13 +370,13 @@ expected diagnostic. Add every new variant to the fixture's `match`, then
 regenerate the snapshot with:
 
 ```sh
-TRYBUILD=overwrite cargo test --test ui
+TRYBUILD=overwrite make test-ui
 ```
 
 Review the regenerated diagnostic before committing. Because the snapshots
 capture compiler output, they are tied to the toolchain pinned in
 `rust-toolchain.toml`; a toolchain bump that rewords `E0004` requires the same
-regeneration step. A fixture that starts *passing* means the enum has lost
+regeneration step. A fixture that starts _passing_ means the enum has lost
 `#[non_exhaustive]`, which is a breaking change rather than a snapshot to
 refresh.
 

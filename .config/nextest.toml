@@ -1,0 +1,11 @@
+# nextest's configuration for this repository. The default profile keeps the 180 s
+# per-test allowance that the coverage action writes when a repository has no file of
+# its own, and gives the trybuild tests more, because they compile the whole
+# dependency graph in a nested Cargo and a pull request has no warm sccache directory
+# until the default branch has written one.
+[profile.default]
+slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
+
+[[profile.default.overrides]]
+filter = 'binary(ui)'
+slow-timeout = { period = "180s", terminate-after = 3, grace-period = "5s" }

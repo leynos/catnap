@@ -22,6 +22,8 @@ omits build output such as `target/`.
 
 ├── docs/
 │   ├── contents.md
+│   ├── adr/
+│   │   └── 0001-cranelift-development-backend.md
 │   ├── developers-guide.md
 │   ├── repository-layout.md
 │   ├── users-guide.md
@@ -35,6 +37,10 @@ omits build output such as `target/`.
 │   ├── lib.rs
 │   ├── main.rs
 │   └── runner.rs
+├── scripts/
+│   ├── build-tools-common.sh
+│   ├── check-build-tools.sh
+│   └── install-build-tools.sh
 ├── tests/
 │   ├── behaviour.rs
 │   ├── e2e.rs
@@ -44,6 +50,10 @@ omits build output such as `target/`.
 │   ├── ui.rs
 │   └── ui/
 │       └── ...
+├── tools/
+│   └── mold/
+│       ├── SHA256SUMS
+│       └── VERSION
 ├── AGENTS.md
 ├── Cargo.toml
 ├── LICENSE
@@ -67,6 +77,7 @@ omits build output such as `target/`.
 
 - `docs/`: Holds long-lived reference documentation, guides, style rules, and
   design material.
+- `docs/adr/`: Holds accepted, numbered Architectural Decision Records.
 - `docs/contents.md`: Indexes the documentation set and should be updated when
   documentation files are added, renamed, or removed.
 - `docs/users-guide.md`: Explains how to use the generated project and its
@@ -113,6 +124,9 @@ omits build output such as `target/`.
 - `LICENSE`: Records the project licence text.
 - `Makefile`: Provides the public build, lint, test, coverage, and
   documentation validation commands.
+- `scripts/`: Holds the pinned build-tool installer and checker; their shared
+  helpers are used only by those two scripts.
+- `tools/mold/`: Records the local mold release version and archive checksums.
 - `README.md`: Introduces the project and gives the shortest useful
   getting-started path.
 - `clippy.toml`: Configures Clippy lint behaviour that is not expressed

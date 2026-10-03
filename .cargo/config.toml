@@ -1,8 +1,34 @@
-# No codegen backend is selected here, and none may be while the release
-# workflow builds with `cross +stable build --release`: stable Cargo refuses a
-# `[profile.dev] codegen-backend` key ("config profile `dev` is not valid") and
-# stops reading this file, which broke the v0.1.0 release. See "Cranelift" in
-# docs/developers-guide.md; tests/build_backend_contract.rs holds the rule.
+# Repository-wide Cargo defaults for the development build standard
+# (concordat rule `rust-build-defaults`).
+#
+# The parallel `rustc` frontend and, on Linux, the `mold` linker are the
+# defaults for every development, test, lint and typecheck build. Cargo
+# auto-discovers this file, so a bare `cargo build` gets them too.
+#
+# Cargo selects a single `rustflags` source rather than merging them: a
+# matching `[target.*]` table replaces `[build] rustflags` outright, and an
+# assigned `RUSTFLAGS` replaces both. Every flag is therefore repeated in each
+# source here, and the Makefile composes them into the `RUSTFLAGS` its
+# recipes set. Coverage and the release recipe and workflow assign `RUSTFLAGS`
+# without them on purpose. A direct `cargo build --release` keeps these flags
+# unless `RUSTFLAGS` is assigned.
+#
+# Development uses Cranelift through rustc's nightly flag rather than Cargo's
+# `[profile.dev] codegen-backend` key. The stable release workflow assigns an
+# empty `RUSTFLAGS`, which removes every nightly flag before stable rustc runs.
+# `rust-toolchain.toml` pins the component. See the accepted decision in
+# docs/adr/0001-cranelift-development-backend.md.
+[build]
+rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift"]
+
+# mold ships for Linux only, so the linker flag lives in a Linux-only table,
+# with clang driving the link. Other targets, macOS and Windows included, fall
+# through to `[build] rustflags` above and keep their platform linker.
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# mold ships for Linux only, so the linker flag lives in a Linux-only table. A `cfg` table
+# matches every Linux target, not one architecture; the triple tables above keep only the
+# linker. Other targets, macOS and Windows included, fall through to `[build] rustflags`.
+[target.'cfg(target_os = "linux")']
+rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift", "-Clink-arg=-fuse-ld=mold"]

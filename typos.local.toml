@@ -9,14 +9,14 @@ accepted = []
 [words.corrections]
 
 [patterns]
+# Inspect inline code for ordinary misspellings instead of masking every span.
+remove = ['`[^`\n]+`']
 ignore = [
   '\bCARGO_TERM_COLOR\b',
   '\bmold\b',
-  'types: \[[^]]*\blabeled\b',
   '"seconde"',
-  '"ises"',
-  # Inline code spans are masked; the shared dictionary does not mask them yet.
-  '`[^`\n]+`',
+  # GitHub's action identifier is fixed, including its spelling.
+  '`upload-artifact`',
 ]
 
 [files]
