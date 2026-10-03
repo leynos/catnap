@@ -131,7 +131,10 @@ fn development_problem(
     assignment: &Assignment,
 ) -> Option<String> {
     let Assignment::Flags(flags, inherits) = assignment else {
-        return None;
+        return Some(format!(
+            "`make {target}` on {} has a Cargo command with unassigned RUSTFLAGS",
+            host.make_value()
+        ));
     };
     if !inherits {
         return Some(format!(
@@ -154,6 +157,12 @@ pub fn development_problems(host: Host, pin: Pin) -> Result<(Problems, usize), S
     let mut read = 0;
     for target in DEVELOPMENT_TARGETS {
         let commands = make_commands(target, host)?;
+        if commands.is_empty() {
+            problems.push(format!(
+                "`make {target}` on {} runs no Cargo command",
+                host.make_value()
+            ));
+        }
         read += commands
             .iter()
             .filter(|command| **command != Assignment::Unassigned)
@@ -211,3 +220,34 @@ pub fn held_out_problems() -> Result<(Problems, usize), String> {
 
 /// Returns the number of held-out targets the repository defines.
 pub const fn held_out_target_count() -> usize { HELD_OUT_TARGETS.len() }
+
+#[cfg(test)]
+mod mutation_contract {
+    //! A single unassigned Cargo command must fail the development contract.
+
+    use super::{Assignment, Host, Pin, development_problem};
+    use crate::config::{CODEGEN_BACKEND_FLAG, Flags, LINKER_FLAG, THREADS_FLAG};
+
+    #[test]
+    fn removing_one_development_command_assignment_is_reported() {
+        let commands = [
+            Assignment::Flags(
+                Flags::from_words([THREADS_FLAG, CODEGEN_BACKEND_FLAG, LINKER_FLAG]),
+                true,
+            ),
+            Assignment::Unassigned,
+        ];
+        let problems = commands
+            .iter()
+            .filter_map(|command| development_problem("test", Host::Linux, Pin::Nightly, command))
+            .collect::<Vec<_>>();
+
+        assert_eq!(problems.len(), 1, "mutation problems: {problems:?}");
+        assert!(
+            problems
+                .iter()
+                .any(|problem| problem.contains("unassigned RUSTFLAGS")),
+            "mutation problems: {problems:?}"
+        );
+    }
+}
