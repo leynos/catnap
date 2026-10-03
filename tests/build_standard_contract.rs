@@ -5,14 +5,14 @@
 //! on Linux. Cargo reads these from `.cargo/config.toml`, but it applies a single
 //! `rustflags` source rather than merging them, and an assigned `RUSTFLAGS`
 //! replaces every source. So the flags must be repeated in each configuration
-//! source, restated wherever the Makefile assigns `RUSTFLAGS` for a development
-//! target, and kept out of the coverage and release recipes, which measure or
+//! source, restated wherever Netsuke assigns `RUSTFLAGS` for a development
+//! action, and kept out of the coverage and release actions, which measure or
 //! ship and so stay on the default flags. A stable pin takes mold alone,
 //! because the frontend and Cranelift flags require nightly.
 //!
-//! The Makefile clauses run `make -n` and read the commands it would run,
-//! rather than the Makefile's text, so a flag lost through a variable or a
-//! recipe edit fails here. They run once as a Linux host and once as a macOS
+//! The Netsuke clauses run public actions with fake tools and read the flags
+//! that Cargo actually receives, so a flag lost through a manifest edit fails
+//! here. They run once as a Linux host and once as a macOS
 //! host through `BUILD_HOST_OS`, because mold is added on Linux alone. The
 //! listed targets and workflows are this repository's own: one that stops being
 //! defined fails the contract, so the check cannot quietly stop covering it.
@@ -26,13 +26,13 @@
 mod ci_steps;
 #[path = "build_standard_support/config.rs"]
 mod config;
-#[path = "build_standard_support/make.rs"]
-mod make;
+#[path = "build_standard_support/netsuke.rs"]
+mod netsuke;
 #[path = "build_standard_support/properties.rs"]
 mod properties;
 use ci_steps::{coverage_problems, linker_install_problems, workflow_problems};
 use config::{CONFIG, Flags, Pin, Problems, THREADS_FLAG, TOOLCHAIN, config_problems};
-use make::{
+use netsuke::{
     Assignment,
     Host,
     assigned_rustflags,
@@ -158,7 +158,7 @@ fn flags(words: &[&str], inherits: bool) -> Assignment {
     Assignment::Flags(Flags::from_words(words.iter().copied()), inherits)
 }
 
-/// Scenario: `make -n` output lines in each spelling of an assignment.
+/// Scenario: generated Netsuke commands in each spelling of an assignment.
 ///
 /// Invariant: a quoted assignment is read, with the caller's inherited flags
 /// set aside, and a line assigning none reads as unassigned.
@@ -181,7 +181,7 @@ fn the_command_reader_reads_each_assignment(
     }
 }
 
-/// Scenario: `make -n` output lines whose assignment the reader cannot parse.
+/// Scenario: generated Netsuke commands whose assignment the reader cannot parse.
 ///
 /// Invariant: each is refused rather than passed, because an assignment in a
 /// form the reader does not understand still replaces the configuration.
@@ -232,7 +232,7 @@ const STEP_BEFORE_A_SIBLING_THAT_INSTALLS: &str = concat!(
 );
 /// A comment that names the action, and no step.
 const COMMENT_NAMING_THE_ACTION: &str =
-    "    steps:\n      # setup-rust@abc installs it\n      - run: make\n";
+    "    steps:\n      # setup-rust@abc installs it\n      - run: netsuke build test\n";
 
 /// Scenario: workflow steps that set up Rust with and without the input.
 ///

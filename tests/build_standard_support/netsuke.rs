@@ -1,21 +1,26 @@
-//! Readers for the Makefile half of the build standard: the commands `make -n`
-//! prints for each development, coverage and release target, judged against a
-//! toolchain pin and a host.
+//! Readers for the Netsukefile half of the build standard: public actions are
+//! executed with fake tools so their actual `RUSTFLAGS` reach the contract.
 
-use std::process::Command;
+use std::{env, process::Command};
+
+use cap_std::{
+    ambient_authority,
+    fs::{Dir, PermissionsExt},
+};
+use tempfile::TempDir;
 
 use super::config::{CODEGEN_BACKEND_FLAG, Flags, LINKER_FLAG, Pin, Problems, THREADS_FLAG};
 
-/// Makefile targets that build for development. A command in one either assigns
+/// Netsuke actions that build for development. A command in one either assigns
 /// `RUSTFLAGS` with the standard flags or assigns none and so takes the
 /// configuration's. The list is this repository's own, and a target that stops
 /// being defined fails the contract rather than dropping out of it.
 const DEVELOPMENT_TARGETS: &[&str] = &["test", "typecheck", "lint", "build"];
-/// Makefile targets that measure or ship, so every command assigns `RUSTFLAGS`
+/// Netsuke actions that measure or ship, so every command assigns `RUSTFLAGS`
 /// and none carries a standard flag.
 const HELD_OUT_TARGETS: &[&str] = &["coverage", "release"];
 
-/// The host `make` is told it runs on, through `BUILD_HOST_OS`.
+/// The host Netsuke is told it runs on, through `BUILD_HOST_OS`.
 #[derive(Clone, Copy)]
 pub enum Host {
     Linux,
@@ -24,7 +29,7 @@ pub enum Host {
 
 impl Host {
     /// Returns the value `uname -s` reports for the host.
-    const fn make_value(self) -> &'static str {
+    const fn host_name(self) -> &'static str {
         match self {
             Self::Linux => "Linux",
             Self::Darwin => "Darwin",
@@ -35,7 +40,7 @@ impl Host {
     const fn takes_linker_flag(self) -> bool { matches!(self, Self::Linux) }
 }
 
-/// What one `make -n` command assigns to `RUSTFLAGS`.
+/// What one Cargo command assigns to `RUSTFLAGS`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Assignment {
     Unassigned,
@@ -43,7 +48,7 @@ pub enum Assignment {
     Flags(Flags, bool),
 }
 
-/// Reads the `RUSTFLAGS` a `make -n` output line assigns. An unreadable form is
+/// Reads the `RUSTFLAGS` a command line assigns. An unreadable form is
 /// an error, because it still replaces the configuration's sources and so must
 /// not pass.
 ///
@@ -80,7 +85,7 @@ pub fn assigned_rustflags(line: &str) -> Result<Assignment, String> {
     ))
 }
 
-/// Reads the assignment of each Cargo command `make -n` printed. Whitaker's
+/// Reads the assignment of each Cargo command in a plan. Whitaker's
 /// separate toolchain must not inherit the development build flags.
 ///
 /// # Errors
@@ -100,25 +105,85 @@ pub fn commands_from(stdout: &str) -> Result<Vec<Assignment>, String> {
         .collect()
 }
 
-/// Runs `make -n` for a target on a host and reads its commands.
-fn make_commands(target: &str, host: Host) -> Result<Vec<Assignment>, String> {
-    let output = Command::new("make")
-        .args([
-            "-n",
-            "-B",
-            &format!("BUILD_HOST_OS={}", host.make_value()),
-            target,
-        ])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
+/// Install one executable into a private command directory.
+fn fake_tool(directory: &Dir, name: &str, script: &str) -> Result<(), String> {
+    directory
+        .write(name, script)
+        .map_err(|error| error.to_string())?;
+    let mut permissions = directory
+        .metadata(name)
+        .map_err(|error| error.to_string())?
+        .permissions();
+    permissions.set_mode(0o755);
+    directory
+        .set_permissions(name, permissions)
+        .map_err(|error| error.to_string())
+}
+
+/// Execute a public action with fake Cargo and read the flags it actually saw.
+fn netsuke_commands(target: &str, host: Host) -> Result<Vec<Assignment>, String> {
+    let workspace = TempDir::new().map_err(|error| error.to_string())?;
+    let tools = TempDir::new().map_err(|error| error.to_string())?;
+    let root = Dir::open_ambient_dir(workspace.path(), ambient_authority())
+        .map_err(|error| error.to_string())?;
+    let tool_root = Dir::open_ambient_dir(tools.path(), ambient_authority())
+        .map_err(|error| error.to_string())?;
+    root.write("Netsukefile", include_str!("../../Netsukefile"))
+        .map_err(|error| error.to_string())?;
+    root.create_dir("scripts")
+        .map_err(|error| error.to_string())?;
+    tool_root
+        .create_dir("bin")
+        .map_err(|error| error.to_string())?;
+    fake_tool(&root, "scripts/check-build-tools.sh", "#!/bin/sh\nexit 0\n")?;
+    fake_tool(
+        &tool_root,
+        "bin/cargo",
+        "#!/bin/sh\nprintf '%s\\n' \"${RUSTFLAGS-__UNSET__}\" >> \"$BUILD_STANDARD_LOG\"\n",
+    )?;
+    for tool in ["whitaker", "yamllint", "actionlint"] {
+        fake_tool(&tool_root, &format!("bin/{tool}"), "#!/bin/sh\nexit 0\n")?;
+    }
+    let fake_bin = tools.path().join("bin");
+    let mut path_entries = vec![fake_bin];
+    path_entries.extend(env::split_paths(&env::var_os("PATH").unwrap_or_default()));
+    let sandbox_path = env::join_paths(path_entries).map_err(|error| error.to_string())?;
+    let output = Command::new("netsuke")
+        .args(["build", target])
+        .current_dir(workspace.path())
+        .env("PATH", sandbox_path)
+        .env("BUILD_TOOLS_PREFIX", tools.path())
+        .env("BUILD_HOST_OS", host.host_name())
+        .env(
+            "BUILD_STANDARD_LOG",
+            workspace.path().join("cargo-flags.log"),
+        )
+        .env("RUSTFLAGS", "-Copt-level=1")
+        .env_remove("BASH_ENV")
         .output()
-        .map_err(|error| format!("running make: {error}"))?;
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .map_err(|error| format!("running Netsuke {target}: {error}"))?;
     if !output.status.success() {
         return Err(format!(
-            "`make -n {target}` failed, so it is not defined: {stderr}"
+            "Netsuke {target} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
         ));
     }
-    commands_from(&String::from_utf8_lossy(&output.stdout))
+    let flags = root
+        .read_to_string("cargo-flags.log")
+        .map_err(|error| format!("Netsuke {target} ran no Cargo command: {error}"))?;
+    Ok(flags
+        .lines()
+        .map(|value| {
+            if matches!(value, "__UNSET__" | "-Copt-level=1") {
+                Assignment::Unassigned
+            } else {
+                Assignment::Flags(
+                    Flags::from_words(value.split_whitespace()),
+                    value.contains("-Copt-level=1"),
+                )
+            }
+        })
+        .collect())
 }
 
 /// Returns the complaint about one development command, if any: an assigned
@@ -132,18 +197,21 @@ fn development_problem(
 ) -> Option<String> {
     let Assignment::Flags(flags, inherits) = assignment else {
         return Some(format!(
-            "`make {target}` on {} has a Cargo command with unassigned RUSTFLAGS",
-            host.make_value()
+            "`netsuke build {target}` on {} has a Cargo command with unassigned RUSTFLAGS",
+            host.host_name()
         ));
     };
     if !inherits {
         return Some(format!(
-            "`make {target}` on {} drops the caller's RUSTFLAGS",
-            host.make_value()
+            "`netsuke build {target}` on {} drops the caller's RUSTFLAGS",
+            host.host_name()
         ));
     }
     let reason = flags.meets(pin, host.takes_linker_flag()).err()?;
-    Some(format!("`make {target}` on {} {reason}", host.make_value()))
+    Some(format!(
+        "`netsuke build {target}` on {} {reason}",
+        host.host_name()
+    ))
 }
 
 /// Returns every complaint about the development targets on one host, and how
@@ -156,11 +224,11 @@ pub fn development_problems(host: Host, pin: Pin) -> Result<(Problems, usize), S
     let mut problems = Vec::new();
     let mut read = 0;
     for target in DEVELOPMENT_TARGETS {
-        let commands = make_commands(target, host)?;
+        let commands = netsuke_commands(target, host)?;
         if commands.is_empty() {
             problems.push(format!(
-                "`make {target}` on {} runs no Cargo command",
-                host.make_value()
+                "`netsuke build {target}` on {} runs no Cargo command",
+                host.host_name()
             ));
         }
         read += commands
@@ -181,7 +249,7 @@ pub fn development_problems(host: Host, pin: Pin) -> Result<(Problems, usize), S
 fn held_out_command_problems(target: &str, assignment: &Assignment) -> Problems {
     let Assignment::Flags(flags, _) = assignment else {
         return vec![format!(
-            "`make {target}` runs a command that takes the configuration's flags"
+            "`netsuke build {target}` runs a command that takes the configuration's flags"
         )];
     };
     let named = [
@@ -192,7 +260,7 @@ fn held_out_command_problems(target: &str, assignment: &Assignment) -> Problems 
     named
         .into_iter()
         .filter(|(is_named, _)| *is_named)
-        .map(|(_, flag)| format!("`make {target}` takes {flag}"))
+        .map(|(_, flag)| format!("`netsuke build {target}` takes {flag}"))
         .collect()
 }
 
@@ -207,7 +275,7 @@ pub fn held_out_problems() -> Result<(Problems, usize), String> {
     let mut problems = Vec::new();
     let mut read = 0;
     for target in HELD_OUT_TARGETS {
-        let commands = make_commands(target, Host::Linux)?;
+        let commands = netsuke_commands(target, Host::Linux)?;
         read += commands.len();
         problems.extend(
             commands

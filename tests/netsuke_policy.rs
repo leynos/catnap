@@ -51,19 +51,28 @@ fn manifest_preserves_public_actions_and_serial_dependencies() {
         names,
         [
             "all",
+            "install-build-tools",
+            "install-cranelift",
+            "check-build-tools",
+            "check-rust-toolchain",
+            "check-coverage-tools",
             "clean",
             "test",
+            "test-ui",
             "build",
             "release",
             "coverage",
             "lint",
             "rust-lint",
             "github-actions-lint",
+            "yamllint",
+            "actionlint",
             "typecheck",
             "fmt",
             "check-fmt",
             "markdownlint",
             "spelling",
+            "test-workflow-contracts",
             "nixie",
         ]
     );
@@ -71,9 +80,28 @@ fn manifest_preserves_public_actions_and_serial_dependencies() {
         manifest.get("defaults").and_then(Value::as_sequence),
         Some(&vec![Value::String("all".to_owned())])
     );
+}
+
+/// Serial aggregate actions retain their declared order without no-op commands.
+#[test]
+fn aggregate_actions_keep_serial_dependencies() {
+    let manifest = yaml(include_str!("../Netsukefile")).expect("parse Netsukefile");
     for (name, expected) in [
-        ("all", &["check-fmt", "lint", "test", "spelling"][..]),
-        ("lint", &["rust-lint", "github-actions-lint"][..]),
+        (
+            "all",
+            &[
+                "check-fmt",
+                "lint",
+                "test",
+                "spelling",
+                "test-workflow-contracts",
+            ][..],
+        ),
+        (
+            "lint",
+            &["check-build-tools", "rust-lint", "github-actions-lint"][..],
+        ),
+        ("github-actions-lint", &["yamllint", "actionlint"][..]),
     ] {
         let action = action(&manifest, name).expect("find serial action");
         let deps: Vec<&str> = action
@@ -93,6 +121,12 @@ fn manifest_preserves_public_actions_and_serial_dependencies() {
             "{name} must remain dependency-only"
         );
     }
+}
+
+/// Markdown lint must run the spelling prerequisite first.
+#[test]
+fn markdown_lint_depends_on_spelling() {
+    let manifest = yaml(include_str!("../Netsukefile")).expect("parse Netsukefile");
     let markdown_deps: Vec<&str> = action(&manifest, "markdownlint")
         .expect("find markdownlint action")
         .get("deps")
@@ -194,12 +228,12 @@ fn ci_and_coverage_jobs_install_netsuke_before_tests() {
         assert!(script.contains("netsuke-build --version \"=${NETSUKE_VERSION}\""));
     }
     let ordered = steps(&coverage, "coverage-upload").expect("find coverage job steps");
-    let linkers = step(ordered, "Install coverage linkers").expect("find linker install step");
+    let ninja_step = step(ordered, "Install Ninja").expect("find Ninja install step");
     assert!(
-        linkers
+        ninja_step
             .get("run")
             .and_then(Value::as_str)
-            .expect("find linker install command")
+            .expect("find Ninja install command")
             .contains("ninja-build")
     );
 }
@@ -212,10 +246,7 @@ fn ci_invokes_netsuke_gates() {
     for (name, expected) in [
         ("Format", "netsuke build check-fmt"),
         ("Spelling", "netsuke build spelling"),
-        (
-            "Lint",
-            "ACTIONLINT=\"$GITHUB_WORKSPACE/actionlint\" netsuke build lint",
-        ),
+        ("Lint", "netsuke build lint"),
     ] {
         assert_eq!(
             step(ordered, name)

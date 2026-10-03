@@ -12,12 +12,12 @@ Contributors moving from the former Make targets can consult the
 ## Local Workflow
 
 Use `netsuke` as the public entrypoint for formatting, linting, and tests. The
-default `all` action runs its formatting, lint, test, and spelling gates
-sequentially. The separate `markdownlint` and `nixie` actions validate Markdown
-and Mermaid diagrams. `netsuke build lint` runs rustdoc, Clippy, Whitaker,
-yamllint, and actionlint. Whitaker runs with warnings denied, without the
-development frontend and linker flags. CI installs its rolling suite through
-the pinned shared `install-whitaker` action,
+default `all` action runs its formatting, lint, test, spelling, and
+workflow-contract gates sequentially. The separate `markdownlint` and `nixie`
+actions validate Markdown and Mermaid diagrams. `netsuke build lint` runs
+rustdoc, Clippy, Whitaker, yamllint, and actionlint. Whitaker runs with
+warnings denied and without the development frontend or linker flags. CI
+installs the rolling suite with the pinned shared `install-whitaker` action,
 which verifies the default installer binary and refuses a source-build
 fallback. The suite version is not overridden. `netsuke build test` prefers
 `cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
@@ -28,18 +28,17 @@ normal doctests. `netsuke build coverage` uses `cargo llvm-cov` with `lld`.
 
 ### YAML lint
 
-`make lint` runs `yamllint --strict` over every Git-tracked `*.yml` and
-`*.yaml` file, then `actionlint` over the workflows, which also runs
-`shellcheck` over their `run:` scripts. Install yamllint 1.38.0, actionlint
-1.7.12 and shellcheck 0.11.0 locally, as CI does through the shared
-`install-yaml-lint` action, so results agree. Run the targets from the
-repository root: yamllint resolves `.yamllint.yml`, which extends the estate
-base `.yamllint-estate.yml` (copied verbatim, never edited here), against the
+`netsuke build lint` runs `yamllint --strict` over every Git-tracked `*.yml`
+and `*.yaml` file, then runs `actionlint` over the workflows. Actionlint also
+runs `shellcheck` over their `run:` scripts. Run the target from the repository
+root: yamllint resolves `.yamllint.yml`, which extends the estate base
+`.yamllint-estate.yml` (copied verbatim and never edited here), against the
 working directory. `.github/actionlint.yaml` declares the `ubicloud-*` runner
-labels. `tests/yaml_lint_contract.rs` judges the Makefile and workflow wiring
-against fixtures and then the real files, and `tests/workflow_lint.rs` runs
-`make lint` with stand-in tools to prove the tracked-files list and that a
-yamllint failure stops the gate.
+labels. CI installs yamllint, actionlint and shellcheck through the pinned
+shared `install-yaml-lint` action before running the gate; it does not install
+these tools with hand-written steps. `tests/yaml_lint_contract.rs` and
+`tests/workflow_lint.rs` guard the tracked-file selection, linter invocation,
+failure propagation and CI provisioning.
 
 ### Coverage publication
 
@@ -90,10 +89,9 @@ only for a branch it analyses, which a pull request head is not.
 
 `netsuke build test-workflow-contracts` enforces the split by running
 `cv005-contracts check`, the shared contract library in `leynos/shared-actions`
-(`packages/cv005-contracts`), from the full commit named by
-`CV005_CONTRACTS_REF` in the `Netsukefile`; CI runs it in a "Check the CV-005
-contracts" step. A fix to the rules is therefore a pin bump. The repository's
-parameters are in
+(`packages/cv005-contracts`), from the pinned `leynos/shared-actions` revision
+in the `Netsukefile`; CI runs it in a "Check the CV-005 contracts" step. A fix
+to the rules is therefore a pin bump. The repository's parameters are in
 `.github/cv005.toml`: its `repository` name and the `[selection]` the baseline
 measures, which the publisher's generator must carry and every pull-request
 lane must match. The library's own suite proves each rule refuses the shape it
@@ -113,35 +111,6 @@ behind `if: github.event_name == 'pull_request'`, so the publisher stays the
 baseline's only writer. When adding a workflow, keep CodeScene, `cs-coverage`,
 and the token out of it unless it is the publisher; the library names the
 clause a change breaks.
-
-### GitHub Actions workflow linting
-
-`netsuke build lint` runs `yamllint .github/workflows` and `actionlint`, so
-every workflow receives YAML style, syntax, and GitHub Actions semantic
-validation. The `.yamllint.yml` policy accepts GitHub's unquoted `on` trigger
-key while requiring `true` and `false` for boolean values.
-
-Install `yamllint` with the version configured by `YAMLLINT_VERSION`, then
-install `actionlint` using its
-[upstream instructions](https://github.com/rhysd/actionlint/blob/main/README.md#installation).
-Make both linters available on `PATH` before running the target:
-
-```sh
-export YAMLLINT_VERSION=1.38.0
-uv tool install "yamllint==${YAMLLINT_VERSION}"
-export PATH="$(uv tool dir --bin):${PATH}"
-netsuke build lint
-```
-
-CI caches the uv cache, tool environment, and executable directory, then
-installs `yamllint` with `uv tool`. It separately caches actionlint v1.7.12
-and, on a cache miss, uses the upstream download script pinned to commit
-`914e7df21a07ef503a81201c76d2b11c789d3fca`, verifying the release archive's
-SHA-256 checksum
-(`8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8`) before
-use. The CI lint step passes the cached or downloaded actionlint executable via
-an absolute `ACTIONLINT` path to Netsuke, so checkout contents cannot shadow
-that executable.
 
 ## Tooling
 
@@ -184,14 +153,13 @@ An assigned `RUSTFLAGS` replaces the configuration's flags, so the development
 build, test, typecheck, and Rust lint actions compose the standard's flags onto
 any inherited value (CI's `setup-rust` exports one). Whitaker is an exception:
 it runs with warning denial but without the development flags. Two builds are
-deliberately excluded: coverage
-assigns `RUSTFLAGS` without the fast flags, because a measurement should not
-depend on them, and the release recipe and workflow keep the platform linker,
-because they assign `RUSTFLAGS` (even an empty value displaces the
-configuration). This also keeps nightly-only Cranelift and frontend flags away
-from stable release builds. Cargo has no per-profile `rustflags`, so a direct
-`cargo build --release` takes the configuration's flags unless `RUSTFLAGS` is
-assigned too.
+deliberately excluded: coverage assigns `RUSTFLAGS` without the fast flags,
+because a measurement should not depend on them, and the release recipe and
+workflow keep the platform linker, because they assign `RUSTFLAGS` (even an
+empty value displaces the configuration). This also keeps nightly-only
+Cranelift and frontend flags away from stable release builds. Cargo has no
+per-profile `rustflags`, so a direct `cargo build --release` takes the
+configuration's flags unless `RUSTFLAGS` is assigned too.
 
 For screen readers: This flowchart shows that unassigned `RUSTFLAGS` use
 Cargo's configuration, development commands compose inherited flags with the
@@ -228,39 +196,45 @@ test, lint, and typecheck builds. Formatting and coverage are checked
 separately: `check-rust-toolchain` verifies the toolchain and requested
 components for formatting, while `check-coverage-tools` verifies the coverage
 toolchain components plus `clang` and `lld`, without requiring Cranelift or
-`mold`. The local Netsuke routes put the configured
-tool directory first on `PATH`; CI keeps the binary path supplied by
-`setup-rust`'s `install-mold` input. The shared
-`scripts/build-tools-common.sh` helpers are scoped to the installer and
-checker so both commands read the same pins.
+`mold`. The local Netsuke routes put the configured tool directory first on
+`PATH`; CI keeps the binary path supplied by `setup-rust`'s `install-mold`
+input. The shared `scripts/build-tools-common.sh` helpers are scoped to the
+installer and checker so both commands read the same pins.
 `tests/build_standard_contract.rs` holds the Rust flag standard. It reads the
 configuration sources, the commands generated for each development target on a
 Linux host and a macOS host (each keeping the caller's own `RUSTFLAGS`) and for
-each coverage and release target on a Linux host, and the
-`setup-rust` steps of the CI workflows (each must pass `install-mold`), so a
-flag lost through a recipe or workflow edit fails there.
-`tests/build_tool_workflow_contract.rs` also scans workflow files for Linux
-Rust suites and requires an earlier pinned `setup-rust` mold installation. Its
-mutation cases cover absent, late, conditional, and soft-failing installation
-steps, plus later system-package installs that could shadow the pinned binary.
+each coverage and release target on a Linux host, and the `setup-rust` steps of
+the CI workflows (each must pass `install-mold`), so a flag lost through a
+recipe or workflow edit fails there. `tests/build_tool_workflow_contract.rs`
+also scans workflow files for Linux Rust suites and requires an earlier pinned
+`setup-rust` mold installation. Its mutation cases cover absent, late,
+conditional, and soft-failing installation steps, plus later system-package
+installs that could shadow the pinned binary.
 
 CI also installs `clang` and `lld` through `setup-rust`'s `install-clang-lld`
 input, which installs both on Linux and fails the job unless `clang` and
-`ld.lld` resolve on `PATH`; the workflows carry no hand-rolled `apt-get` step.
-Both inputs skip with a notice on other platforms and set no linker flag, so
-`.cargo/config.toml` and the coverage step's environment still choose which
-linker runs. `tests/linker_provisioning_contract.rs` reads the parsed
-`setup-rust` step of each CI workflow and asserts both inputs are `'true'` and
-that no step installs a linker by hand.
+`ld.lld` resolve on `PATH`. The workflows have no hand-rolled linker
+installation; Ninja is installed separately with `apt-get`. Both inputs skip
+with a notice on other platforms and set no linker flag, so `.cargo/config.toml`
+and the coverage step's environment still choose which linker runs.
+`tests/linker_provisioning_contract.rs` reads the parsed `setup-rust` step of
+each CI workflow and asserts both inputs are `'true'` and that no step installs
+a linker by hand.
+
+The public Netsuke action cases live in
+`tests/netsuke_actions/public_actions.rs` to keep test files below 400 lines.
+`tests/netsuke_support/git.rs` initializes private Git indexes and placeholder
+YAML only for the action and workflow-lint sandboxes; it does not touch the
+repository index. The Markdown selection tests use a separate fixture that
+commits their tracked examples, so this helper is not a general Git abstraction.
 
 ### Markdown formatting and lint
 
 `netsuke build fmt` and `netsuke build check-fmt` use `mdtablefix` with
-Git-aware selection.
-Tracked Markdown and untracked files that Git does not ignore are included, so
-new documentation is formatted before staging; ignored generated files such as
-those under `target/` stay out of the selection. CI installs `mdtablefix` 0.6.1
-through the pinned shared action.
+Git-aware selection. Tracked Markdown and untracked files that Git does not
+ignore are included, so new documentation is formatted before staging; ignored
+generated files such as those under `target/` stay out of the selection. CI
+installs `mdtablefix` 0.6.1 through the pinned shared action.
 
 The CI action pins `markdownlint-cli2` to its bundled version. Local
 `netsuke build fmt` and `netsuke build markdownlint` invoke that version through

@@ -19,24 +19,27 @@ pub(super) struct BuildToolsSandbox {
     directory: Dir,
     temporary_directory: TempDir,
     pub(super) prefix_bin: PathBuf,
-    pub(super) cargo: PathBuf,
     cargo_log: PathBuf,
     rustup_log: PathBuf,
     install_log: PathBuf,
     path: OsString,
 }
 
+/// Copy the build graph into a private workspace so nested Netsuke runs cannot
+/// wait on the outer test action's publication lock.
 #[fixture]
 pub(super) fn build_tools_sandbox() -> Result<BuildToolsSandbox, Box<dyn Error>> {
     let temporary_directory = tempfile::tempdir()?;
     let directory = Dir::open_ambient_dir(temporary_directory.path(), ambient_authority())?;
+    let repository = Dir::open_ambient_dir(repository_root(), ambient_authority())?;
     directory.create_dir_all("prefix/bin")?;
     directory.create_dir_all("incoming-bin")?;
+    directory.create_dir_all("scripts")?;
+    directory.create_dir_all("tools/mold")?;
 
     let mut paths = vec![temporary_directory.path().join("incoming-bin")];
     paths.extend(env::split_paths(&env::var_os("PATH").unwrap_or_default()));
     let path = env::join_paths(paths)?;
-    let cargo = temporary_directory.path().join("fake-cargo");
     let prefix_bin = temporary_directory.path().join("prefix/bin");
     let cargo_log = temporary_directory.path().join("cargo-invocations.log");
     let rustup_log = temporary_directory.path().join("rustup-invocations.log");
@@ -49,17 +52,42 @@ pub(super) fn build_tools_sandbox() -> Result<BuildToolsSandbox, Box<dyn Error>>
         directory,
         temporary_directory,
         prefix_bin,
-        cargo,
         cargo_log,
         rustup_log,
         install_log,
         path,
     };
+    for file in [
+        "Netsukefile",
+        "rust-toolchain.toml",
+        "tools/mold/VERSION",
+        "tools/mold/SHA256SUMS",
+    ] {
+        sandbox
+            .directory
+            .write(file, repository.read_to_string(file)?)?;
+    }
+    for script in [
+        "scripts/build-tools-common.sh",
+        "scripts/check-build-tools.sh",
+        "scripts/install-build-tools.sh",
+    ] {
+        sandbox.write_executable(script, &repository.read_to_string(script)?)?;
+    }
     sandbox.write_fake_cargo()?;
     Ok(sandbox)
 }
 
 impl BuildToolsSandbox {
+    /// Return both process streams because Netsuke forwards Ninja diagnostics to stdout.
+    pub(super) fn diagnostics(output: &Output) -> String {
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    }
+
     pub(super) fn write_mold(
         &self,
         relative_path: &str,
@@ -167,7 +195,7 @@ impl BuildToolsSandbox {
 
     fn write_fake_cargo(&self) -> Result<(), Box<dyn Error>> {
         self.write_executable(
-            "fake-cargo",
+            "incoming-bin/cargo",
             concat!(
                 "#!/bin/sh\n",
                 "if [ \"${1:-}\" = nextest ]; then exit 1; fi\n",
@@ -184,8 +212,12 @@ impl BuildToolsSandbox {
         Ok(())
     }
 
-    pub(super) fn run_make(&self, arguments: &[&str]) -> Result<Output, Box<dyn Error>> {
-        Ok(self.make_command(arguments).output()?)
+    pub(super) fn run_netsuke(&self, arguments: &[&str]) -> Result<Output, Box<dyn Error>> {
+        Ok(self
+            .netsuke_command()
+            .arg("build")
+            .args(arguments)
+            .output()?)
     }
 
     pub(super) fn run_installer_with_checksum(
@@ -197,17 +229,16 @@ impl BuildToolsSandbox {
             "mold-checksums.txt",
             format!("{checksum}  mold-2.41.0-x86_64-linux.tar.gz\n"),
         )?;
-        let mut command = self.make_command(&["install-build-tools"]);
+        let mut command = self.netsuke_command();
+        command.args(["build", "install-build-tools"]);
         command.env("MOLD_SHA256SUMS_FILE", checksum_file);
         Ok(command.output()?)
     }
 
-    fn make_command(&self, arguments: &[&str]) -> Command {
-        let mut command = Command::new("make");
+    fn netsuke_command(&self) -> Command {
+        let mut command = Command::new("netsuke");
         command
-            .current_dir(repository_root())
-            .arg(format!("CARGO={}", self.cargo.display()))
-            .args(arguments)
+            .current_dir(self.temporary_directory.path())
             .env(
                 "BUILD_TOOLS_PREFIX",
                 self.temporary_directory.path().join("prefix"),
@@ -216,12 +247,38 @@ impl BuildToolsSandbox {
             .env("BUILD_TOOLS_RUSTUP_LOG", &self.rustup_log)
             .env("BUILD_TOOLS_INSTALL_LOG", &self.install_log)
             .env("PATH", &self.path)
-            .env_remove("GITHUB_ACTIONS");
+            .env_remove("GITHUB_ACTIONS")
+            .env_remove("BASH_ENV");
         command
     }
 
+    pub(super) fn run_plan(&self, target: &str) -> Result<Output, Box<dyn Error>> {
+        let plan = self.temporary_directory.path().join("netsuke-plan.ninja");
+        let generated = self
+            .netsuke_command()
+            .args(["generate", "--output"])
+            .arg(&plan)
+            .output()?;
+        if !generated.status.success() {
+            return Err(std::io::Error::other(format!(
+                "Netsuke plan generation failed: {}",
+                String::from_utf8_lossy(&generated.stderr)
+            ))
+            .into());
+        }
+        Ok(Command::new("ninja")
+            .args(["-f"])
+            .arg(plan)
+            .args(["-t", "commands", target])
+            .current_dir(self.temporary_directory.path())
+            .output()?)
+    }
+
     pub(super) fn run_checker(&self, arguments: &[&str]) -> Result<Output, Box<dyn Error>> {
-        let checker = repository_root().join("scripts/check-build-tools.sh");
+        let checker = self
+            .temporary_directory
+            .path()
+            .join("scripts/check-build-tools.sh");
         Ok(Command::new(checker)
             .args(arguments)
             .env(
