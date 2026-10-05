@@ -145,7 +145,7 @@ jobs:
         # is not. `coverage-main.yml` owns both persistent outputs, and the
         # baseline paths are the action's defaults on both sides, so this
         # ratchet reads the baseline that workflow writes.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@d4d248bbbecdcf7b4f5bc79ffd4d6caee370bd79
+        uses: leynos/shared-actions/.github/actions/generate-coverage@7d751eded578e48dacf43ab173d5820e6437c474
         env:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
           RUSTFLAGS: -C link-arg=-fuse-ld=lld
