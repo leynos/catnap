@@ -122,6 +122,8 @@ jobs:
         # release builds with, against .cargo/config.toml.
         run: rustup toolchain install stable --profile minimal
       - name: Install test runner
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: cargo binstall --no-confirm cargo-nextest
       - name: Test public error UI contracts
         run: make test-ui
