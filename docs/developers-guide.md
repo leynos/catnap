@@ -179,7 +179,7 @@ steps, plus later system-package installs that could shadow the pinned binary.
 `make fmt` and `make check-fmt` use `mdtablefix` with Git-aware selection.
 Tracked Markdown and untracked files that Git does not ignore are included, so
 new documentation is formatted before staging; ignored generated files such as
-those under `target/` stay out of the selection. CI installs `mdtablefix` 0.6.0
+those under `target/` stay out of the selection. CI installs `mdtablefix` 0.6.1
 through the pinned shared action.
 
 The Makefile pins `markdownlint-cli2` to the version bundled by the CI action.
