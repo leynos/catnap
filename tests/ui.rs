@@ -20,6 +20,13 @@ fn public_error_display_output() {
     cases.pass("tests/ui/*_display.rs");
 }
 
+/// Compiles the public runner contract from an external crate.
+#[test]
+fn public_runner_contract() {
+    let cases = trybuild::TestCases::new();
+    cases.pass("tests/ui/runner_contract.rs");
+}
+
 /// Compiles every non-exhaustive fixture, pinning the public matching contract.
 #[cfg_attr(
     coverage,
