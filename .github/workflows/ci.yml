@@ -23,27 +23,19 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8
+        uses: leynos/shared-actions/.github/actions/setup-rust@b804b69fa7f978cf9091b9d9bd5481d8ce58c2ea
         with:
           install-mold: 'true'
           expect-cache: any
           # One sccache lane with coverage-main.yml's publisher: only a push to main saves,
           # so pull requests warm from the lane main's publisher writes.
           sccache-cache-discriminator: coverage
+          install-clang-lld: 'true'
       - name: Install rust-analyzer
         # The shared setup action installs build components but not this one.
         run: rustup component add rust-analyzer
       - name: Install Cranelift backend
         run: make install-cranelift
-      - name: Install clang and lld
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          export DEBIAN_FRONTEND=noninteractive
-          # setup-rust installs mold (install-mold above); coverage uses lld for llvm-tools
-          # compatibility.
-          sudo apt-get update \
-            && sudo apt-get install --yes --no-install-recommends clang lld
       - name: Install mdtablefix
         # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.

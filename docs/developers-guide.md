@@ -174,6 +174,15 @@ Rust suites and requires an earlier pinned `setup-rust` mold installation. Its
 mutation cases cover absent, late, conditional, and soft-failing installation
 steps, plus later system-package installs that could shadow the pinned binary.
 
+CI also installs `clang` and `lld` through `setup-rust`'s `install-clang-lld`
+input, which installs both on Linux and fails the job unless `clang` and
+`ld.lld` resolve on `PATH`; the workflows carry no hand-rolled `apt-get` step.
+Both inputs skip with a notice on other platforms and set no linker flag, so
+`.cargo/config.toml` and the coverage step's environment still choose which
+linker runs. `tests/linker_provisioning_contract.rs` reads the parsed
+`setup-rust` step of each CI workflow and asserts both inputs are `'true'` and
+that no step installs a linker by hand.
+
 ### Markdown formatting and lint
 
 `make fmt` and `make check-fmt` use `mdtablefix` with Git-aware selection.
