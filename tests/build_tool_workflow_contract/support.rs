@@ -4,7 +4,7 @@ use cap_std::{ambient_authority, fs_utf8::Dir};
 use serde_norway::Value;
 
 const SETUP_RUST: &str =
-    "leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8";
+    "leynos/shared-actions/.github/actions/setup-rust@b804b69fa7f978cf9091b9d9bd5481d8ce58c2ea";
 const GENERATE_COVERAGE: &str = "leynos/shared-actions/.github/actions/generate-coverage@";
 const INSTALL_CRANELIFT: &str = "make install-cranelift";
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
