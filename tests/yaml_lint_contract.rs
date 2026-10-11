@@ -242,6 +242,11 @@ const GOOD_MAKEFILE: &str = "lint: yamllint actionlint\nyamllint:\n\tgit ls-file
 #[case::workflows_only(&GOOD_MAKEFILE.replace("git ls-files -z '*.yml' '*.yaml' | xargs -0 -r $(YAMLLINT) --strict --", "$(YAMLLINT) --strict .github/workflows"), false)]
 #[case::workflows_filter(&GOOD_MAKEFILE.replace("'*.yaml' |", "'*.yaml' .github/workflows |"), false)]
 #[case::failure_ignored(&GOOD_MAKEFILE.replace("--strict --", "--strict -- || true"), false)]
+#[case::yamllint_dash(&GOOD_MAKEFILE.replace("	git ls-files", "	-git ls-files"), false)]
+#[case::yamllint_negated(&GOOD_MAKEFILE.replace("	git ls-files", "	! git ls-files"), false)]
+#[case::actionlint_ignored(&GOOD_MAKEFILE.replace("	$(ACTIONLINT)", "	$(ACTIONLINT) || true"), false)]
+#[case::actionlint_dash(&GOOD_MAKEFILE.replace("	$(ACTIONLINT)", "	-$(ACTIONLINT)"), false)]
+#[case::actionlint_negated(&GOOD_MAKEFILE.replace("	$(ACTIONLINT)", "	! $(ACTIONLINT)"), false)]
 #[case::outside_lint(&GOOD_MAKEFILE.replace("lint: yamllint actionlint", "lint:\n\ttrue\nother: yamllint actionlint"), false)]
 #[case::no_actionlint(&GOOD_MAKEFILE.replace("\t$(ACTIONLINT)", "\ttrue"), false)]
 fn the_gate_judgement_detects_each_defect(#[case] makefile: &str, #[case] wired: bool) {
