@@ -65,6 +65,22 @@ fn lint_target_propagates_a_workflow_linter_failure(
 }
 
 #[rstest]
+fn lint_target_stops_at_a_failing_yamllint(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
+    let sandbox = lint_sandbox.expect("create lint sandbox");
+
+    let output = sandbox.run_lint(Some("yamllint")).expect("run make lint");
+
+    assert!(!output.status.success(), "make lint unexpectedly succeeded");
+    let invocations = sandbox
+        .workflow_linter_invocations()
+        .expect("read workflow linter invocations");
+    let [yamllint] = invocations.as_slice() else {
+        panic!("actionlint ran after a yamllint failure: {invocations:?}");
+    };
+    assert_yamllint_covers_every_tracked_file(yamllint);
+}
+
+#[rstest]
 fn lint_target_fails_when_a_workflow_linter_is_missing(
     lint_sandbox: Result<LintSandbox, Box<dyn Error>>,
 ) {
@@ -136,17 +152,41 @@ fn assert_workflow_linters(invocations: &[String]) {
     let [yamllint, actionlint] = invocations else {
         panic!("expected one yamllint and one actionlint run, got {invocations:?}");
     };
-    assert!(
-        yamllint.starts_with("yamllint\t--strict\t--\t"),
-        "{invocations:?}"
-    );
-    assert!(
-        yamllint
-            .split('\t')
-            .any(|argument| argument == ".github/workflows/ci.yml"),
-        "yamllint was not given the tracked workflow files: {invocations:?}"
-    );
+    assert_yamllint_covers_every_tracked_file(yamllint);
     assert_eq!(actionlint, "actionlint");
+}
+
+/// yamllint runs strictly, over exactly the Git-tracked YAML files.
+fn assert_yamllint_covers_every_tracked_file(invocation: &str) {
+    let mut arguments = invocation.split('\t');
+    assert_eq!(arguments.next(), Some("yamllint"), "{invocation}");
+    assert_eq!(arguments.next(), Some("--strict"), "{invocation}");
+    assert_eq!(arguments.next(), Some("--"), "{invocation}");
+    let mut given: Vec<&str> = arguments.collect();
+    given.sort_unstable();
+    let Ok(mut tracked) = tracked_yaml_files() else {
+        panic!("could not list the tracked YAML files");
+    };
+    tracked.sort_unstable();
+    assert_eq!(
+        given, tracked,
+        "yamllint was not given the tracked YAML files"
+    );
+}
+
+fn tracked_yaml_files() -> Result<Vec<String>, Box<dyn Error>> {
+    let output = Command::new("git")
+        .current_dir(repository_root())
+        .args(["ls-files", "-z", "*.yml", "*.yaml"])
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other("git ls-files failed").into());
+    }
+    Ok(String::from_utf8(output.stdout)?
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .map(str::to_owned)
+        .collect())
 }
 
 struct LintSandbox {
