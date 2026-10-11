@@ -21,6 +21,21 @@ the nextest route follows with `cargo test --workspace --doc --all-features`;
 the Cargo fallback runs its normal doctests. `make coverage` uses
 `cargo llvm-cov` with `lld`.
 
+### YAML lint
+
+`make lint` runs `yamllint --strict` over every Git-tracked `*.yml` and
+`*.yaml` file, then `actionlint` over the workflows, which also runs
+`shellcheck` over their `run:` scripts. Install yamllint 1.38.0, actionlint
+1.7.12 and shellcheck 0.11.0 locally, as CI does through the shared
+`install-yaml-lint` action, so results agree. Run the targets from the
+repository root: yamllint resolves `.yamllint.yml`, which extends the estate
+base `.yamllint-estate.yml` (copied verbatim, never edited here), against the
+working directory. `.github/actionlint.yaml` declares the `ubicloud-*` runner
+labels. `tests/yaml_lint_contract.rs` judges the Makefile and workflow wiring
+against fixtures and then the real files, and `tests/workflow_lint.rs` runs
+`make lint` with stand-in tools to prove the tracked-files list and that a
+yamllint failure stops the gate.
+
 ### Coverage publication
 
 Coverage has two workflows, and the split is a contract (concordat's CV-005,

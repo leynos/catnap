@@ -1,4 +1,4 @@
-.PHONY: help all clean test test-ui build release coverage lint github-actions-lint fmt check-fmt \
+.PHONY: help all clean test test-ui build release coverage lint github-actions-lint yamllint actionlint fmt check-fmt \
 	markdownlint nixie spelling test-workflow-contracts install-build-tools \
 	install-cranelift check-build-tools check-rust-toolchain check-coverage-tools
 .NOTPARALLEL:
@@ -55,7 +55,6 @@ CV005_CONTRACTS = $(UV_ENV) $(UV) tool run --python 3.13 \
 	--from 'git+https://github.com/leynos/shared-actions@$(CV005_CONTRACTS_REF)\#subdirectory=packages/cv005-contracts' \
 	cv005-contracts
 
-YAMLLINT_VERSION ?= 1.38.0
 TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3
 TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 	"git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
@@ -124,8 +123,14 @@ lint: check-build-tools ## Run Rust and GitHub Actions linters with warnings den
 	PATH="$(USER_BIN_PATH):$(PATH)" RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
 	$(MAKE) github-actions-lint
 
-github-actions-lint: ## Validate GitHub Actions workflows
-	$(YAMLLINT) .github/workflows
+github-actions-lint: yamllint actionlint ## Lint the tracked YAML and the GitHub Actions workflows
+
+# yamllint reads `.yamllint.yml`, which extends `.yamllint-estate.yml`, and
+# resolves that path against the working directory, so it runs from the root.
+yamllint: ## Lint every tracked YAML file strictly
+	git ls-files -z '*.yml' '*.yaml' | xargs -0 -r $(YAMLLINT) --strict --
+
+actionlint: ## Lint the GitHub Actions workflows, including their shell scripts
 	$(ACTIONLINT)
 
 typecheck: check-build-tools ## Type-check without building

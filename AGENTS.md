@@ -149,16 +149,17 @@ project:
     RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
     cargo clippy --all-targets --all-features -- -D warnings
     whitaker --all -- --all-targets --all-features
-    yamllint .github/workflows
+    git ls-files -z '*.yml' '*.yaml' | xargs -0 -r yamllint --strict --
     actionlint
     ```
 
-    This validates Rust documentation, linting, and all GitHub Actions
-    workflows. Keep `.yamllint.yml` compatible with GitHub's unquoted `on`
-    trigger key, and fix workflow findings rather than disabling either linter.
-    CI must cache and install `yamllint` with `uv tool`, then cache the
-    `actionlint` binary downloaded by its upstream script before invoking
-    `make lint`.
+    This validates Rust documentation, linting, every Git-tracked YAML file,
+    and all GitHub Actions workflows. `.yamllint-estate.yml` is the estate's
+    shared base, copied verbatim and never edited here; `.yamllint.yml`
+    extends it and may only add an `ignore`. Fix findings rather than
+    disabling either linter. CI installs `yamllint`, `actionlint` and
+    `shellcheck` through the pinned shared `install-yaml-lint` action before
+    invoking `/usr/bin/make lint`, and never installs them by hand.
   - `make test` executes:
 
     ```sh

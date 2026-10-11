@@ -248,7 +248,7 @@ fn all_gates_stay_sequential_under_parallel_make(
         "cargo\tdoc",
         "cargo\tclippy",
         "whitaker\t--all",
-        "yamllint\t.github/workflows",
+        "yamllint\t--strict\t--",
         "actionlint",
         "cargo\ttest",
         "spelling\tgate",
