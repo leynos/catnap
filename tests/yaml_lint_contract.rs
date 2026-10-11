@@ -101,18 +101,26 @@ fn lint_closure(makefile: &str) -> Vec<String> {
 /// actionlint, in that command position.
 fn lint_gate_is_wired(makefile: &str) -> bool {
     let lines = lint_closure(makefile);
-    let yamllint = lines.iter().any(|line| {
-        line.starts_with("git ls-files")
-            && line.contains("'*.yml'")
-            && line.contains("'*.yaml'")
-            && line.contains("| xargs")
-            && line.contains("$(YAMLLINT)")
-            && line.contains("--strict")
-            && !line.contains(".github")
-            && !line.contains("|| true")
-    });
-    let actionlint = lines.iter().any(|line| line.starts_with("$(ACTIONLINT)"));
-    yamllint && actionlint
+    lines.iter().any(|line| is_sound_yamllint(line))
+        && lines.iter().any(|line| is_sound_actionlint(line))
+}
+
+/// Returns whether a recipe line lints the tracked YAML strictly, from Git's
+/// own file list, with its failure left to fail the target.
+fn is_sound_yamllint(line: &str) -> bool {
+    let from_git =
+        line.starts_with("git ls-files") && line.contains("| xargs") && !line.contains(".github");
+    let every_pathspec = line.contains("'*.yml'") && line.contains("'*.yaml'");
+    from_git
+        && every_pathspec
+        && line.contains("$(YAMLLINT)")
+        && line.contains("--strict")
+        && !line.contains("|| true")
+}
+
+/// Returns whether a recipe line runs actionlint.
+fn is_sound_actionlint(line: &str) -> bool {
+    line.starts_with("$(ACTIONLINT)") && !line.contains("|| true")
 }
 
 /// Returns whether a line is a job key: indented by exactly two spaces.
@@ -291,35 +299,49 @@ fn actionlint_accepts_the_estate_runner_labels() {
     assert!(code_lines(ACTIONLINT_CONFIG).any(|line| line == "- ubicloud-*"));
 }
 
-/// The directives of the estate base that the lint gate depends on.
-const ESTATE_BASE_DIRECTIVES: [&str; 18] = [
+/// The estate base, as its code lines: the canonical configuration with
+/// comments and blank lines dropped.
+const CANONICAL_ESTATE_BASE: [&str; 28] = [
+    "---",
     "extends: default",
-    "**/charts/**/templates/",
-    "document-start: disable",
-    "min-spaces-from-content: 1",
-    "spaces: consistent",
-    "indent-sequences: consistent",
-    "check-multi-line-strings: false",
-    "min-spaces-inside: 0",
-    "max-spaces-inside: 1",
-    "max: 120",
-    "allow-non-breakable-words: true",
-    "allow-non-breakable-inline-mappings: true",
-    ".github/workflows/",
-    ".github/actions/",
-    "allowed-values: ['true', 'false']",
-    "check-keys: false",
-    "braces:",
-    "brackets:",
+    "ignore: |",
+    "  **/charts/**/templates/",
+    "rules:",
+    "  document-start: disable",
+    "  comments:",
+    "    min-spaces-from-content: 1",
+    "  indentation:",
+    "    spaces: consistent",
+    "    indent-sequences: consistent",
+    "    check-multi-line-strings: false",
+    "  braces:",
+    "    min-spaces-inside: 0",
+    "    max-spaces-inside: 1",
+    "  brackets:",
+    "    min-spaces-inside: 0",
+    "    max-spaces-inside: 1",
+    "  line-length:",
+    "    max: 120",
+    "    allow-non-breakable-words: true",
+    "    allow-non-breakable-inline-mappings: true",
+    "    ignore: |",
+    "      .github/workflows/",
+    "      .github/actions/",
+    "  truthy:",
+    "    allowed-values: ['true', 'false']",
+    "    check-keys: false",
 ];
 
 #[test]
-fn the_estate_base_carries_every_directive_the_gate_depends_on() {
+fn the_estate_base_is_the_canonical_configuration() {
     let base = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/.yamllint-estate.yml"));
-    for directive in ESTATE_BASE_DIRECTIVES {
-        assert!(
-            base.contains(directive),
-            "the estate base lacks `{directive}`"
-        );
-    }
+    // Every rule, heading and value, in order: a dropped or changed setting
+    // fails even when its text survives under a sibling rule. The Concordat
+    // `yaml-lint-baseline` rule audits the same file by digest.
+    let code: Vec<&str> = base
+        .lines()
+        .map(|line| line.split(" #").next().unwrap_or_default().trim_end())
+        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
+        .collect();
+    assert_eq!(code, CANONICAL_ESTATE_BASE);
 }
