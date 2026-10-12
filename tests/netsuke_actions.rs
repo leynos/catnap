@@ -94,9 +94,6 @@ impl ActionSandbox {
                 ])?,
             )
             .env_remove("BASH_ENV")
-            .env_remove("GIT_DIR")
-            .env_remove("GIT_WORK_TREE")
-            .env_remove("GIT_INDEX_FILE")
             .env_remove("RUSTFLAGS")
             .env_remove("RUSTDOCFLAGS")
             .env_remove("CFLAGS")
@@ -113,6 +110,7 @@ impl ActionSandbox {
         if let Some(tool) = failing_tool {
             command.env("FAILING_TOOL", tool);
         }
+        sandbox_git::isolate(&mut command);
         Ok(command.output()?)
     }
 

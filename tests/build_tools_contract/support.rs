@@ -4,6 +4,7 @@ use std::{
     env,
     error::Error,
     ffi::OsString,
+    io,
     path::PathBuf,
     process::{Command, Output},
 };
@@ -266,12 +267,13 @@ impl BuildToolsSandbox {
             ))
             .into());
         }
-        Ok(Command::new("ninja")
+        let mut command = Command::new("ninja");
+        command
             .args(["-f"])
             .arg(plan)
             .args(["-t", "commands", target])
-            .current_dir(self.temporary_directory.path())
-            .output()?)
+            .current_dir(self.temporary_directory.path());
+        Ok(ninja_output(&mut command)?)
     }
 
     pub(super) fn run_checker(&self, arguments: &[&str]) -> Result<Output, Box<dyn Error>> {
@@ -303,3 +305,28 @@ impl BuildToolsSandbox {
 }
 
 fn repository_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")) }
+
+/// Preserve the OS launch failure as the source of Ninja's installation guidance.
+#[derive(Debug, thiserror::Error)]
+#[error("failed to start Ninja; install Ninja and ensure it is on PATH: {0}")]
+struct NinjaLaunchError(#[source] io::Error);
+
+/// Run this harness's plan inspector, retaining its output and contextualizing launch errors.
+fn ninja_output(command: &mut Command) -> io::Result<Output> {
+    command
+        .output()
+        .map_err(|error| io::Error::new(error.kind(), NinjaLaunchError(error)))
+}
+
+/// Missing Ninja reports installation guidance without losing its OS error kind or source.
+#[test]
+fn missing_ninja_has_installation_context() {
+    let tools = tempfile::tempdir().expect("create private missing-executable location");
+    let mut command = Command::new(tools.path().join("missing-ninja"));
+    let error = ninja_output(&mut command).expect_err("missing executable must fail to launch");
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    assert!(error.to_string().contains("install Ninja"));
+    let context = error.get_ref().expect("launch error keeps its context");
+    let source = context.source().expect("context keeps the OS launch error");
+    assert!(source.downcast_ref::<io::Error>().is_some());
+}

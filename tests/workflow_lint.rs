@@ -263,9 +263,6 @@ impl LintSandbox {
             .env("PATH", env::join_paths(path)?)
             .env("YAMLLINT", yamllint)
             .env("ACTIONLINT", self.tool_command("actionlint"))
-            .env_remove("GIT_DIR")
-            .env_remove("GIT_WORK_TREE")
-            .env_remove("GIT_INDEX_FILE")
             .env("LINT_INVOCATION_LOG", &self.invocation_log)
             .env(
                 "WHITAKER_RUSTFLAGS_LOG",
@@ -282,6 +279,7 @@ impl LintSandbox {
                 self.temporary_directory.path().join("gate-lock"),
             );
         }
+        sandbox_git::isolate(&mut command);
         Ok(command.output()?)
     }
 

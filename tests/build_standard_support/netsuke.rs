@@ -19,6 +19,8 @@ const DEVELOPMENT_TARGETS: &[&str] = &["test", "typecheck", "lint", "build"];
 /// Netsuke actions that measure or ship, so every command assigns `RUSTFLAGS`
 /// and none carries a standard flag.
 const HELD_OUT_TARGETS: &[&str] = &["coverage", "release"];
+/// Caller-only marker used by fake Cargo; action-owned flags cannot prove inheritance.
+const CALLER_FLAG: &str = "--cfg=catnap_contract_caller";
 
 /// The host Netsuke is told it runs on, through `BUILD_HOST_OS`.
 #[derive(Clone, Copy)]
@@ -158,7 +160,7 @@ fn netsuke_commands(target: &str, host: Host) -> Result<Vec<Assignment>, String>
             "BUILD_STANDARD_LOG",
             workspace.path().join("cargo-flags.log"),
         )
-        .env("RUSTFLAGS", "-Copt-level=1")
+        .env("RUSTFLAGS", CALLER_FLAG)
         .env_remove("BASH_ENV")
         .output()
         .map_err(|error| format!("running Netsuke {target}: {error}"))?;
@@ -171,19 +173,17 @@ fn netsuke_commands(target: &str, host: Host) -> Result<Vec<Assignment>, String>
     let flags = root
         .read_to_string("cargo-flags.log")
         .map_err(|error| format!("Netsuke {target} ran no Cargo command: {error}"))?;
-    Ok(flags
-        .lines()
-        .map(|value| {
-            if matches!(value, "__UNSET__" | "-Copt-level=1") {
-                Assignment::Unassigned
-            } else {
-                Assignment::Flags(
-                    Flags::from_words(value.split_whitespace()),
-                    value.contains("-Copt-level=1"),
-                )
-            }
-        })
-        .collect())
+    Ok(flags.lines().map(observed_rustflags).collect())
+}
+
+/// Classify fake Cargo's observed flags, removing the exact caller marker first.
+fn observed_rustflags(value: &str) -> Assignment {
+    if value == "__UNSET__" || value.trim() == CALLER_FLAG {
+        return Assignment::Unassigned;
+    }
+    let inherits = value.split_whitespace().any(|word| word == CALLER_FLAG);
+    let own = value.split_whitespace().filter(|word| *word != CALLER_FLAG);
+    Assignment::Flags(Flags::from_words(own), inherits)
 }
 
 /// Returns the complaint about one development command, if any: an assigned
@@ -293,8 +293,31 @@ pub const fn held_out_target_count() -> usize { HELD_OUT_TARGETS.len() }
 mod mutation_contract {
     //! A single unassigned Cargo command must fail the development contract.
 
-    use super::{Assignment, Host, Pin, development_problem};
+    use rstest::rstest;
+
+    use super::{Assignment, CALLER_FLAG, Host, Pin, development_problem, observed_rustflags};
     use crate::config::{CODEGEN_BACKEND_FLAG, Flags, LINKER_FLAG, THREADS_FLAG};
+
+    /// Only the exact caller-only marker proves inheritance and is not an owned flag.
+    #[rstest]
+    #[case::action_owned_flag("-Copt-level=1", "-Copt-level=1", false)]
+    #[case::caller_marker(concat!("--cfg=catnap_contract_caller ", "-Copt-level=1"), "-Copt-level=1", true)]
+    #[case::marker_substring(
+        "--cfg=catnap_contract_caller_extra",
+        "--cfg=catnap_contract_caller_extra",
+        false
+    )]
+    fn observed_flags_distinguish_the_caller_marker(
+        #[case] observed: &str,
+        #[case] owned: &str,
+        #[case] inherits: bool,
+    ) {
+        assert_eq!(
+            observed_rustflags(observed),
+            Assignment::Flags(Flags::from_words(owned.split_whitespace()), inherits),
+        );
+        assert_eq!(observed_rustflags(CALLER_FLAG), Assignment::Unassigned);
+    }
 
     #[test]
     fn removing_one_development_command_assignment_is_reported() {
