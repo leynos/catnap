@@ -60,7 +60,11 @@ impl ActionSandbox {
         if with_nextest {
             write_fake_tool(&tools, "cargo-nextest")?;
         }
-        sandbox_git::initialize(&directory, temporary_directory.path(), &["fixture.yaml".to_owned(), "fixture.yml".to_owned()])?;
+        sandbox_git::initialize(
+            &directory,
+            temporary_directory.path(),
+            &["fixture.yaml".to_owned(), "fixture.yml".to_owned()],
+        )?;
         Ok(Self {
             directory,
             temporary_directory,

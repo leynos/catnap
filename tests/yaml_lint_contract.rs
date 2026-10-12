@@ -9,9 +9,10 @@
 //! follows named dependencies and reads command strings, without rendering
 //! templates or acting as a general Netsuke compiler.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use rstest::rstest;
 use serde_norway::Value;
-use std::collections::{BTreeMap, BTreeSet};
 
 const NETSUKEFILE: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Netsukefile"));
 const CI_WORKFLOW: &str = include_str!(concat!(
@@ -108,14 +109,7 @@ impl Manifest<'_> {
     /// Invalid YAML, shapes, duplicate names and missing references return `None`.
     fn lint_closure(&self) -> Option<Vec<String>> {
         let document: Value = serde_norway::from_str(self.0).ok()?;
-        let actions = document.get("actions")?.as_sequence()?;
-        let mut indexed = BTreeMap::new();
-        for action in actions {
-            let name = action.get("name")?.as_str()?;
-            if indexed.insert(name, action).is_some() {
-                return None;
-            }
-        }
+        let indexed = Self::indexed_actions(&document)?;
         let mut pending = vec!["lint"];
         let mut seen = BTreeSet::new();
         let mut lines = Vec::new();
@@ -124,14 +118,31 @@ impl Manifest<'_> {
                 continue;
             }
             let action = indexed.get(name)?;
-            if let Some(deps) = action.get("deps") {
-                for dependency in deps.as_sequence()? {
-                    pending.push(dependency.as_str()?);
-                }
-            }
+            pending.extend(Self::dependencies(action)?);
             lines.extend(Self::commands(action)?);
         }
         Some(lines)
+    }
+
+    /// Index named actions for these contracts, rejecting invalid or repeated names.
+    fn indexed_actions(document: &Value) -> Option<BTreeMap<&str, &Value>> {
+        let actions = document.get("actions")?.as_sequence()?;
+        let mut indexed = BTreeMap::new();
+        for action in actions {
+            let name = action.get("name")?.as_str()?;
+            if indexed.insert(name, action).is_some() {
+                return None;
+            }
+        }
+        Some(indexed)
+    }
+
+    /// Read dependency names without accepting a scalar or non-string list item.
+    fn dependencies(action: &Value) -> Option<Vec<&str>> {
+        match action.get("deps") {
+            Some(deps) => deps.as_sequence()?.iter().map(Value::as_str).collect(),
+            None => Some(Vec::new()),
+        }
     }
 
     /// Read a scalar or list command; dependency-only actions need no command.
@@ -269,7 +280,7 @@ const GOOD_WORKFLOW: &str = concat!(
 #[case::other_job(&GOOD_WORKFLOW.replace("      - run:", "  other:\n    steps:\n      - run:"), false)]
 #[case::ignored_failure(&GOOD_WORKFLOW.replace("netsuke build lint", "netsuke build lint || true"), false)]
 #[case::continue_on_error(&GOOD_WORKFLOW.replace("      - run:", "        continue-on-error: true\n      - run:"), false)]
-#[case::after(GOOD_WORKFLOW.replace("      - uses:", "      - run: netsuke build lint\n      - uses:").trim_end_matches("      - run: netsuke build lint\n"), false)]
+#[case::after(&GOOD_WORKFLOW.replace("      - uses:", "      - run: netsuke build lint\n      - uses:"), false)]
 #[case::no_lint(&GOOD_WORKFLOW.replace("netsuke build lint", "netsuke build test"), false)]
 #[case::cargo_only(&GOOD_WORKFLOW.replace("netsuke build lint", "cargo clippy --all-targets"), false)]
 fn the_ci_judgement_detects_each_defect(#[case] workflow: &str, #[case] installs: bool) {

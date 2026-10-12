@@ -28,15 +28,15 @@ normal doctests. `netsuke build coverage` uses `cargo llvm-cov` with `lld`.
 
 ### YAML lint
 
-`netsuke build lint` runs `yamllint --strict` over every Git-tracked `*.yml`
-and `*.yaml` file, then runs `actionlint` over the workflows. Actionlint also
-runs `shellcheck` over their `run:` scripts. Run the target from the repository
+`netsuke build lint` runs `yamllint --strict` over every Git-tracked `*.yml` and
+`*.yaml` file, then runs `actionlint` over the workflows. Actionlint also runs
+`shellcheck` over their `run:` scripts. Run the target from the repository
 root: yamllint resolves `.yamllint.yml`, which extends the estate base
 `.yamllint-estate.yml` (copied verbatim and never edited here), against the
 working directory. `.github/actionlint.yaml` declares the `ubicloud-*` runner
 labels. CI installs yamllint, actionlint and shellcheck through the pinned
 shared `install-yaml-lint` action before running the gate; it does not install
-these tools with hand-written steps. `tests/yaml_lint_contract.rs` and
+these tools with handwritten steps. `tests/yaml_lint_contract.rs` and
 `tests/workflow_lint.rs` guard the tracked-file selection, linter invocation,
 failure propagation and CI provisioning.
 
@@ -215,11 +215,11 @@ CI also installs `clang` and `lld` through `setup-rust`'s `install-clang-lld`
 input, which installs both on Linux and fails the job unless `clang` and
 `ld.lld` resolve on `PATH`. The workflows have no hand-rolled linker
 installation; Ninja is installed separately with `apt-get`. Both inputs skip
-with a notice on other platforms and set no linker flag, so `.cargo/config.toml`
-and the coverage step's environment still choose which linker runs.
-`tests/linker_provisioning_contract.rs` reads the parsed `setup-rust` step of
-each CI workflow and asserts both inputs are `'true'` and that no step installs
-a linker by hand.
+with a notice on other platforms and set no linker flag, so
+`.cargo/config.toml` and the coverage step's environment still choose which
+linker runs. `tests/linker_provisioning_contract.rs` reads the parsed
+`setup-rust` step of each CI workflow and asserts both inputs are `'true'` and
+that no step installs a linker by hand.
 
 The public Netsuke action cases live in
 `tests/netsuke_actions/public_actions.rs` to keep test files below 400 lines.

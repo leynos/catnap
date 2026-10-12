@@ -30,6 +30,15 @@ const YAML_INSTALLER: &str = "leynos/shared-actions/.github/actions/install-yaml
 #[path = "netsuke_support/git.rs"]
 mod sandbox_git;
 
+#[path = "workflow_lint/yaml_selection.rs"]
+mod yaml_selection;
+
+use yaml_selection::{
+    assert_workflow_linters,
+    assert_yamllint_covers_every_tracked_file,
+    tracked_yaml_files,
+};
+
 #[path = "workflow_lint/codescene_token.rs"]
 mod codescene_token;
 #[path = "workflow_lint/whitaker.rs"]
@@ -61,9 +70,14 @@ fn lint_target_propagates_a_workflow_linter_failure(
 ) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
 
-    let output = sandbox.run_lint(Some("actionlint")).expect("run netsuke build lint");
+    let output = sandbox
+        .run_lint(Some("actionlint"))
+        .expect("run netsuke build lint");
 
-    assert!(!output.status.success(), "netsuke build lint unexpectedly succeeded");
+    assert!(
+        !output.status.success(),
+        "netsuke build lint unexpectedly succeeded"
+    );
     assert_workflow_linters(
         &sandbox
             .workflow_linter_invocations()
@@ -76,9 +90,14 @@ fn lint_target_propagates_a_workflow_linter_failure(
 fn lint_target_stops_at_a_failing_yamllint(lint_sandbox: Result<LintSandbox, Box<dyn Error>>) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
 
-    let output = sandbox.run_lint(Some("yamllint")).expect("run netsuke build lint");
+    let output = sandbox
+        .run_lint(Some("yamllint"))
+        .expect("run netsuke build lint");
 
-    assert!(!output.status.success(), "netsuke build lint unexpectedly succeeded");
+    assert!(
+        !output.status.success(),
+        "netsuke build lint unexpectedly succeeded"
+    );
     let invocations = sandbox
         .workflow_linter_invocations()
         .expect("read workflow linter invocations");
@@ -95,9 +114,14 @@ fn lint_target_fails_when_a_workflow_linter_is_missing(
 ) {
     let sandbox = lint_sandbox.expect("create lint sandbox");
 
-    let output = sandbox.run_with_missing_yamllint().expect("run netsuke build lint");
+    let output = sandbox
+        .run_with_missing_yamllint()
+        .expect("run netsuke build lint");
 
-    assert!(!output.status.success(), "netsuke build lint unexpectedly succeeded");
+    assert!(
+        !output.status.success(),
+        "netsuke build lint unexpectedly succeeded"
+    );
     assert!(
         sandbox
             .workflow_linter_invocations()
@@ -156,50 +180,6 @@ fn workflow_lint_policy_supports_github_actions_and_pinned_ci_tools(
     );
 }
 
-/// The workflow linters run once each: yamllint strictly over the tracked
-/// YAML, then actionlint.
-fn assert_workflow_linters(invocations: &[String]) {
-    let [yamllint, actionlint] = invocations else {
-        panic!("expected one yamllint and one actionlint run, got {invocations:?}");
-    };
-    assert_yamllint_covers_every_tracked_file(yamllint);
-    assert_eq!(actionlint, "actionlint");
-}
-
-/// yamllint runs strictly, over exactly the Git-tracked YAML files.
-fn assert_yamllint_covers_every_tracked_file(invocation: &str) {
-    let mut arguments = invocation.split('\t');
-    assert_eq!(arguments.next(), Some("yamllint"), "{invocation}");
-    assert_eq!(arguments.next(), Some("--strict"), "{invocation}");
-    assert_eq!(arguments.next(), Some("--"), "{invocation}");
-    let mut given: Vec<&str> = arguments.collect();
-    given.sort_unstable();
-    let Ok(mut tracked) = tracked_yaml_files() else {
-        panic!("could not list the tracked YAML files");
-    };
-    tracked.sort_unstable();
-    assert_eq!(
-        given, tracked,
-        "yamllint was not given the tracked YAML files"
-    );
-}
-
-/// Read the repository index's YAML path list for the isolated Git fixture.
-fn tracked_yaml_files() -> Result<Vec<String>, Box<dyn Error>> {
-    let output = Command::new("git")
-        .current_dir(repository_root())
-        .args(["ls-files", "-z", "*.yml", "*.yaml"])
-        .output()?;
-    if !output.status.success() {
-        return Err(io::Error::other("git ls-files failed").into());
-    }
-    Ok(String::from_utf8(output.stdout)?
-        .split('\0')
-        .filter(|path| !path.is_empty())
-        .map(str::to_owned)
-        .collect())
-}
-
 struct LintSandbox {
     directory: Dir,
     invocation_log: PathBuf,
@@ -224,7 +204,11 @@ fn lint_sandbox() -> Result<LintSandbox, Box<dyn Error>> {
     ] {
         write_fake_tool(&directory, tool)?;
     }
-    sandbox_git::initialize(&directory, temporary_directory.path(), &tracked_yaml_files()?)?;
+    sandbox_git::initialize(
+        &directory,
+        temporary_directory.path(),
+        &tracked_yaml_files()?,
+    )?;
     Ok(LintSandbox {
         directory,
         invocation_log,

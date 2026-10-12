@@ -5,6 +5,7 @@ use std::{path::PathBuf, process::Command as StdCommand};
 use assert_cmd::Command;
 use predicates::prelude::*;
 
+/// Verify the compiled CLI's help, countdown output, and invalid operands.
 #[test]
 fn compiled_binary_exposes_gnu_like_sleep_behaviour() -> Result<(), Box<dyn std::error::Error>> {
     let binary = build_catnap_binary()?;
@@ -18,8 +19,10 @@ fn compiled_binary_exposes_gnu_like_sleep_behaviour() -> Result<(), Box<dyn std:
                 .and(predicate::str::contains("--logical-second-ms").not()),
         );
 
+    // A 10 ms total can expire before a loaded host schedules the first report.
+    // Exact tick timing is covered separately with the runner's mock clock.
     Command::new(&binary)
-        .args(["--logical-second-ms", "5", "2"])
+        .args(["--logical-second-ms", "1000", "2"])
         .assert()
         .success()
         .stdout(predicate::str::is_empty())
