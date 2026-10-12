@@ -5,8 +5,8 @@ set.
 
 ## Project guides
 
-- [User guide](users-guide.md) explains how to use the generated project and
-  its public build and test commands.
+- [User guide](users-guide.md) explains the `catnap` command and its
+  user-facing behaviour.
 - [Developer guide](developers-guide.md) explains the local workflow and
   implementation tooling for contributors.
 - [Repository layout](repository-layout.md) explains the generated project's
@@ -14,6 +14,8 @@ set.
 - [Documentation style guide](documentation-style-guide.md) defines the
   spelling, structure, Markdown, Architecture Decision Record (ADR), Request
   for Comments (RFC), and roadmap conventions used by this documentation set.
+- [Build orchestration migration guide](migrations/v0-1-0.md) maps the former
+  Make targets to the Netsuke commands and documents migration considerations.
 
 ## Rust reference material
 
@@ -38,3 +40,5 @@ set.
 
 - [ADR 001: Cranelift development backend](adr/0001-cranelift-development-backend.md)
   records the nightly development backend choice and stable release boundary.
+- [ADR 002](adr/adr-002-netsuke-build-orchestration.md): records why the
+  repository uses Netsuke instead of Make.

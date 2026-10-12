@@ -12,20 +12,18 @@ use tempfile::TempDir;
 const MARKDOWNLINT_CLI2_VERSION: &str = "0.23.3";
 
 #[test]
-fn make_uses_the_cli_version_bundled_by_the_ci_action() {
-    let makefile = repository_directory()
+fn netsuke_uses_the_cli_version_bundled_by_the_ci_action() {
+    let manifest = repository_directory()
         .expect("open repository root")
-        .read_to_string("Makefile")
-        .expect("read Makefile");
-    let version_pin = format!("MARKDOWNLINT_CLI2_VERSION ?= {MARKDOWNLINT_CLI2_VERSION}");
+        .read_to_string("Netsukefile")
+        .expect("read Netsukefile");
+    let version_pin = format!("markdownlint-cli2@{MARKDOWNLINT_CLI2_VERSION}");
 
-    assert!(makefile.lines().any(|line| line == version_pin.as_str()));
-    assert!(
-        makefile.contains("MDLINT ?= bunx --silent markdownlint-cli2@$(MARKDOWNLINT_CLI2_VERSION)")
-    );
-    assert!(makefile.contains("$(MDLINT) --fix \"**/*.md\""));
-    assert!(makefile.contains("xargs -0 $(MDLINT)"));
-    assert!(makefile.contains("MDTABLEFIX_SELECT = --git --include-untracked"));
+    assert!(manifest.contains(&format!("bunx --silent {version_pin}")));
+    assert!(manifest.contains(&format!("{version_pin} --fix \"**/*.md\"")));
+    assert!(manifest.contains(&format!("xargs -0 bunx --silent {version_pin}")));
+    assert!(manifest.contains("mdtablefix --check --git --include-untracked"));
+    assert!(manifest.contains("mdtablefix --in-place --git --include-untracked"));
 }
 
 #[test]

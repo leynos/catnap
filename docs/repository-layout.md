@@ -17,13 +17,17 @@ omits build output such as `target/`.
 │   ├── dependabot.yml
 │   └── workflows/
 │       ├── ci.yml
-
+│       ├── coverage-main.yml
+│       ├── delayed-pr-comment.yml
+│       ├── dependabot-automerge.yml
 │       └── release.yml
-
 ├── docs/
 │   ├── contents.md
 │   ├── adr/
-│   │   └── 0001-cranelift-development-backend.md
+│   │   ├── 0001-cranelift-development-backend.md
+│   │   └── adr-002-netsuke-build-orchestration.md
+│   ├── migrations/
+│   │   └── v0-1-0.md
 │   ├── developers-guide.md
 │   ├── repository-layout.md
 │   ├── users-guide.md
@@ -57,7 +61,7 @@ omits build output such as `target/`.
 ├── AGENTS.md
 ├── Cargo.toml
 ├── LICENSE
-├── Makefile
+├── Netsukefile
 ├── README.md
 ├── clippy.toml
 ├── codecov.yml
@@ -71,17 +75,25 @@ omits build output such as `target/`.
 - `.github/dependabot.yml`: Configures automated dependency update checks.
 - `.github/workflows/ci.yml`: Runs the generated project's continuous
   integration checks.
-
+- `.github/workflows/coverage-main.yml`: Publishes the main-branch coverage
+  report and updates its baseline.
+- `.github/workflows/delayed-pr-comment.yml`: Posts delayed pull-request
+  comments for configured workflow results.
+- `.github/workflows/dependabot-automerge.yml`: Applies the repository's
+  Dependabot pull-request automation.
 - `.github/workflows/release.yml`: Builds and publishes binary release
   artefacts for the application flavour.
 
 - `docs/`: Holds long-lived reference documentation, guides, style rules, and
   design material.
 - `docs/adr/`: Holds accepted, numbered Architectural Decision Records.
+- `docs/migrations/`: Holds guides for moving from retired interfaces to their
+  replacements.
+- `docs/migrations/v0-1-0.md`: Maps former Make targets to Netsuke actions.
 - `docs/contents.md`: Indexes the documentation set and should be updated when
   documentation files are added, renamed, or removed.
-- `docs/users-guide.md`: Explains how to use the generated project and its
-  public build and test commands.
+- `docs/users-guide.md`: Explains how to use the `catnap` command and its
+  user-facing behaviour.
 - `docs/developers-guide.md`: Explains the contributor workflow and local
   tooling used to work on the generated project.
 - `docs/repository-layout.md`: Documents the repository tree and path
@@ -122,7 +134,7 @@ omits build output such as `target/`.
 - `Cargo.toml`: Defines package metadata, dependencies, lint policy, and Cargo
   configuration.
 - `LICENSE`: Records the project licence text.
-- `Makefile`: Provides the public build, lint, test, coverage, and
+- `Netsukefile`: Provides the public build, lint, test, coverage, and
   documentation validation commands.
 - `scripts/`: Holds the pinned build-tool installer and checker; their shared
   helpers are used only by those two scripts.
@@ -143,8 +155,8 @@ omits build output such as `target/`.
   under `tests/`.
 - Keep reusable documentation under `docs/`. Update `docs/contents.md` whenever
   a documentation file is added, renamed, or removed.
-- Keep build and validation entrypoints in `Makefile`; prefer adding or
-  extending a Make target over documenting an ad hoc command.
+- Keep build and validation entrypoints in `Netsukefile`; prefer adding or
+  extending a Netsuke action over documenting an ad hoc command.
 - Keep continuous integration workflow changes under `.github/workflows/` and
   dependency-update policy under `.github/dependabot.yml`.
 - Do not commit generated build output such as `target/`, coverage artefacts,

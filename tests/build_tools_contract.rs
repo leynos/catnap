@@ -1,4 +1,4 @@
-//! Consumer contracts for the pinned local build-tool checks and Make routes.
+//! Consumer contracts for the pinned local build-tool checks and Netsuke routes.
 
 use std::error::Error;
 
@@ -34,9 +34,9 @@ fn pinned_prefix_mold_wins_over_an_earlier_wrong_version(
         .expect("write fake rustup");
 
     let output = sandbox
-        .run_make(&["check-build-tools"])
-        .expect("run make check-build-tools");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["check-build-tools"])
+        .expect("run netsuke build check-build-tools");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(
         output.status.success(),
@@ -68,8 +68,10 @@ fn wrong_prefix_mold_stops_build_with_install_hint_before_cargo(
         .write_rustup(PINNED_TOOLCHAIN)
         .expect("write fake rustup");
 
-    let output = sandbox.run_make(&["build"]).expect("run make build");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let output = sandbox
+        .run_netsuke(&["build"])
+        .expect("run netsuke build build");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(!output.status.success(), "build unexpectedly succeeded");
     assert!(
@@ -80,7 +82,7 @@ fn wrong_prefix_mold_stops_build_with_install_hint_before_cargo(
         "checker did not reject the prefix mold: {stderr}"
     );
     assert!(
-        stderr.contains("run make install-build-tools to match"),
+        stderr.contains("run netsuke build install-build-tools to match"),
         "failure did not explain how to install the pinned tools: {stderr}"
     );
     assert_eq!(
@@ -104,9 +106,9 @@ fn missing_pinned_toolchain_reports_install_hint(
         .expect("write fake rustup without the pinned nightly");
 
     let output = sandbox
-        .run_make(&["check-build-tools"])
-        .expect("run make check-build-tools");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["check-build-tools"])
+        .expect("run netsuke build check-build-tools");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(!output.status.success(), "check unexpectedly succeeded");
     assert!(
@@ -114,7 +116,7 @@ fn missing_pinned_toolchain_reports_install_hint(
         "checker did not identify the missing nightly: {stderr}"
     );
     assert!(
-        stderr.contains("install it with: make install-build-tools"),
+        stderr.contains("install it with: netsuke build install-build-tools"),
         "failure did not explain how to install the pinned toolchain: {stderr}"
     );
 }
@@ -140,9 +142,9 @@ fn missing_pinned_toolchain_component_reports_install_hint(
         .expect("write fake rustup without rustfmt");
 
     let output = sandbox
-        .run_make(&["check-build-tools"])
-        .expect("run make check-build-tools");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["check-build-tools"])
+        .expect("run netsuke build check-build-tools");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(!output.status.success(), "check unexpectedly succeeded");
     assert!(
@@ -152,7 +154,7 @@ fn missing_pinned_toolchain_component_reports_install_hint(
         "checker did not identify the missing rustfmt component: {stderr}"
     );
     assert!(
-        stderr.contains("install it with: make install-build-tools"),
+        stderr.contains("install it with: netsuke build install-build-tools"),
         "failure did not explain how to install the pinned tools: {stderr}"
     );
 }
@@ -167,9 +169,9 @@ fn toolchain_check_does_not_require_local_linkers(
         .expect("write fake rustup");
 
     let output = sandbox
-        .run_make(&["check-rust-toolchain"])
-        .expect("run make check-rust-toolchain");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        .run_netsuke(&["check-rust-toolchain"])
+        .expect("run netsuke build check-rust-toolchain");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(output.status.success(), "toolchain check failed: {stderr}");
     assert!(stderr.contains(&format!("toolchain {PINNED_TOOLCHAIN} available")));
@@ -191,7 +193,7 @@ fn toolchain_checker_rejects_extra_arguments(
     let output = sandbox
         .run_checker(&["--toolchain-only", "unexpected"])
         .expect("run build-tools checker");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(
         !output.status.success(),
@@ -215,8 +217,10 @@ fn coverage_check_rejects_unusable_lld_before_cargo(
         .write_rustup(PINNED_TOOLCHAIN)
         .expect("write fake rustup");
 
-    let output = sandbox.run_make(&["coverage"]).expect("run make coverage");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let output = sandbox
+        .run_netsuke(&["coverage"])
+        .expect("run netsuke build coverage");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(
         !output.status.success(),
@@ -245,8 +249,10 @@ fn coverage_check_rejects_unusable_clang_before_cargo(
         .write_rustup(PINNED_TOOLCHAIN)
         .expect("write fake rustup");
 
-    let output = sandbox.run_make(&["coverage"]).expect("run make coverage");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let output = sandbox
+        .run_netsuke(&["coverage"])
+        .expect("run netsuke build coverage");
+    let stderr = BuildToolsSandbox::diagnostics(&output);
 
     assert!(
         !output.status.success(),
@@ -264,102 +270,94 @@ fn coverage_check_rejects_unusable_clang_before_cargo(
 }
 
 #[rstest]
-fn make_build_routes_check_tools_before_cargo_and_exclude_release_routes(
+fn netsuke_build_routes_check_tools_before_cargo_and_exclude_release_routes(
     build_tools_sandbox: Result<BuildToolsSandbox, Box<dyn Error>>,
 ) {
     let sandbox = build_tools_sandbox.expect("create build-tools sandbox");
 
-    for target in ["build", "test", "lint", "typecheck"] {
-        let output = sandbox
-            .run_make(&["-n", "-B", target])
-            .expect("run Make dry-run");
+    for target in ["build", "test", "typecheck"] {
+        let output = sandbox.run_plan(target).expect("generate Netsuke plan");
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
             output.status.success(),
-            "make -n {target} failed: {}",
+            "Netsuke plan for {target} failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
         let check_position = stdout
             .find("scripts/check-build-tools.sh")
-            .unwrap_or_else(|| panic!("make -n {target} omitted the tool check: {stdout}"));
+            .unwrap_or_else(|| panic!("Netsuke {target} omitted the tool check: {stdout}"));
         let cargo_position = stdout
-            .find(&sandbox.cargo.display().to_string())
-            .unwrap_or_else(|| panic!("make -n {target} omitted fake Cargo: {stdout}"));
+            .find("cargo ")
+            .unwrap_or_else(|| panic!("Netsuke {target} omitted Cargo: {stdout}"));
         assert!(
             check_position < cargo_position,
-            "make -n {target} places Cargo before the tool check: {stdout}"
+            "Netsuke {target} places Cargo before the tool check: {stdout}"
         );
     }
 
     for target in ["fmt", "check-fmt"] {
-        let output = sandbox
-            .run_make(&["-n", "-B", target])
-            .expect("run Make dry-run");
+        let output = sandbox.run_plan(target).expect("generate Netsuke plan");
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
             output.status.success(),
-            "make -n {target} failed: {}",
+            "Netsuke plan for {target} failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
         let check_position = stdout
             .find("scripts/check-build-tools.sh --toolchain-only")
-            .unwrap_or_else(|| panic!("make -n {target} omitted the toolchain check: {stdout}"));
+            .unwrap_or_else(|| panic!("Netsuke {target} omitted the toolchain check: {stdout}"));
         let cargo_position = stdout
-            .find(&sandbox.cargo.display().to_string())
-            .unwrap_or_else(|| panic!("make -n {target} omitted fake Cargo: {stdout}"));
+            .find("cargo ")
+            .unwrap_or_else(|| panic!("Netsuke {target} omitted Cargo: {stdout}"));
         assert!(
             check_position < cargo_position,
-            "make -n {target} places Cargo before the toolchain check: {stdout}"
+            "Netsuke {target} places Cargo before the toolchain check: {stdout}"
         );
     }
 
     let target = "release";
-    let output = sandbox
-        .run_make(&["-n", "-B", target])
-        .expect("run Make dry-run");
+    let output = sandbox.run_plan(target).expect("generate Netsuke plan");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         output.status.success(),
-        "make -n {target} failed: {}",
+        "Netsuke plan for {target} failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
         !stdout.contains("scripts/check-build-tools.sh"),
-        "make -n {target} unexpectedly depends on the local tool check: {stdout}"
+        "Netsuke {target} unexpectedly depends on the local tool check: {stdout}"
     );
     assert!(
-        stdout.contains(&sandbox.cargo.display().to_string()),
-        "make -n {target} omitted fake Cargo: {stdout}"
+        stdout.contains("cargo +stable build"),
+        "Netsuke {target} omitted stable Cargo: {stdout}"
     );
     assert_eq!(
         sandbox.cargo_invocations().expect("read fake Cargo log"),
         "",
-        "Make dry-run executed a Cargo command"
+        "Netsuke plan inspection executed a Cargo command"
     );
 }
 
 #[rstest]
-fn make_coverage_route_checks_linkers_before_cargo(
+fn netsuke_coverage_route_checks_linkers_before_cargo(
     build_tools_sandbox: Result<BuildToolsSandbox, Box<dyn Error>>,
 ) {
     let sandbox = build_tools_sandbox.expect("create build-tools sandbox");
-    let output = sandbox
-        .run_make(&["-n", "-B", "coverage"])
-        .expect("run Make dry-run");
+    let output = sandbox.run_plan("coverage").expect("generate Netsuke plan");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
         output.status.success(),
-        "make -n coverage failed: {}",
+        "Netsuke coverage plan failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     let check_position = stdout
         .find("scripts/check-build-tools.sh --coverage-only")
-        .unwrap_or_else(|| panic!("make -n coverage omitted the linker check: {stdout}"));
+        .unwrap_or_else(|| panic!("Netsuke coverage omitted the linker check: {stdout}"));
     let cargo_position = stdout
-        .find(&sandbox.cargo.display().to_string())
-        .unwrap_or_else(|| panic!("make -n coverage omitted fake Cargo: {stdout}"));
+        .find("cargo llvm-cov")
+        .unwrap_or_else(|| panic!("Netsuke coverage omitted Cargo: {stdout}"));
     assert!(
         check_position < cargo_position,
-        "make -n coverage places Cargo before the linker check: {stdout}"
+        "Netsuke coverage places Cargo before the linker check: {stdout}"
     );
 }

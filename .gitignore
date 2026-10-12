@@ -3,6 +3,11 @@ target/
 __pycache__/
 .coverage
 
+# Netsuke-generated Ninja state
+.netsuke/
+.ninja_deps
+.ninja_log
+
 # Local spelling-policy caches and helper tool state
 .uv-cache/
 .uv-tools/

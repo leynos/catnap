@@ -47,40 +47,5 @@ The progress interval depends on the full requested duration:
 Remaining time is formatted for the current environment locale where a
 translation is available, with English used as the fallback locale.
 
-## Development Tooling
-
-The project uses Rust 2024, a pinned nightly toolchain, strict lint settings,
-and documented source code. Development, test, lint, and typecheck builds use
-the Cranelift backend. Release builds use stable Rust and clear the
-nightly-only development flags before compiling. On Linux targets,
-`.cargo/config.toml` configures clang to link with `mold` so local debug builds
-link quickly. Coverage generation stays on LLVM and uses `lld` because LLVM
-coverage tools expect LLVM-compatible linker behaviour.
-
-## Makefile Targets
-
-The generated `Makefile` exposes these public targets:
-
-- `make all` runs formatting checks, linting, and tests.
-- `make check-fmt` verifies Rust formatting.
-- `make lint` runs rustdoc, Clippy, and Whitaker with warnings denied.
-- `make test` runs `cargo nextest run` when cargo-nextest is installed and
-  follows it with workspace doctests. When cargo-nextest is unavailable, it
-  falls back to `cargo test`, which runs its normal doctest suite.
-- `make install-build-tools` installs the pinned nightly with its requested
-  components and the checksum-verified `mold` release on Linux.
-- `make check-build-tools` verifies the pinned nightly and its components,
-  `clang`, and `mold` before development, test, lint, and typecheck builds.
-- `make check-rust-toolchain` verifies the pinned channel and components before
-  formatting commands.
-- `make check-coverage-tools` verifies the pinned toolchain, `clang`, and `lld`
-  before coverage generation.
-- `make build` builds the debug target.
-- `make release` builds the release target.
-- `make coverage` writes `lcov.info` using `cargo llvm-cov` and `lld`.
-- `make markdownlint` checks Markdown files.
-- `make nixie` validates Mermaid diagrams.
-
-On Linux, install `clang` and `lld` with the operating system's package
-manager, then run `make install-build-tools` to install the pinned nightly and
-`mold`.
+For contributor build and validation actions, and local development-tool setup,
+see the [developer guide](developers-guide.md).

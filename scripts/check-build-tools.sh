@@ -15,17 +15,17 @@ check_mold() {
   fi
   if ! resolved=$(command -v mold 2>/dev/null); then
     note "mold not found on PATH (pinned $pinned)"
-    note 'install it with: make install-build-tools'
+    note 'install it with: netsuke build install-build-tools'
     return 1
   fi
   if ! installed=$(installed_mold_version) || [ -z "$installed" ]; then
     note "mold at $resolved is on PATH but cannot report its version"
-    note 'reinstall it with: make install-build-tools'
+    note 'reinstall it with: netsuke build install-build-tools'
     return 1
   fi
   if [ "$installed" != "$pinned" ]; then
     note "mold $installed at $resolved does not match the pin $pinned"
-    note 'run make install-build-tools to match'
+    note 'run netsuke build install-build-tools to match'
     return 1
   fi
   note "mold $installed at $resolved"
@@ -40,12 +40,12 @@ check_clang() {
   if ! resolved=$(command -v clang 2>/dev/null); then
     note 'clang driver not found on PATH; install clang using your OS package manager'
     note 'for example: dnf install clang (Fedora/Rocky) or apt install clang (Debian/Ubuntu)'
-    note 'after installing clang, run: make check-build-tools'
+    note 'after installing clang, run: netsuke build check-build-tools'
     return 1
   fi
   if ! version=$(clang --version 2>/dev/null) || [ -z "$version" ]; then
     note "clang driver at $resolved cannot report its version"
-    note 'install clang using your OS package manager, then run: make check-build-tools'
+    note 'install clang using your OS package manager, then run: netsuke build check-build-tools'
     return 1
   fi
   note "clang driver at $resolved"
@@ -60,12 +60,12 @@ check_lld() {
   if ! resolved=$(command -v ld.lld 2>/dev/null); then
     note 'lld linker not found on PATH; install it using your OS package manager'
     note 'for example: dnf install lld (Fedora/Rocky) or apt install lld (Debian/Ubuntu)'
-    note 'after installing lld, run: make check-coverage-tools'
+    note 'after installing lld, run: netsuke build check-coverage-tools'
     return 1
   fi
   if ! version=$(ld.lld --version 2>/dev/null) || [ -z "$version" ]; then
     note "lld linker at $resolved cannot report its version"
-    note 'install lld using your OS package manager, then run: make check-coverage-tools'
+    note 'install lld using your OS package manager, then run: netsuke build check-coverage-tools'
     return 1
   fi
   note "lld linker at $resolved: $version"
@@ -84,13 +84,13 @@ check_toolchain() {
   local -a components
   if ! command -v rustup >/dev/null 2>&1; then
     note 'rustup not found on PATH; install it from https://rustup.rs'
-    note 'after installing rustup, run: make install-build-tools'
+    note 'after installing rustup, run: netsuke build install-build-tools'
     return 1
   fi
   if ! installed_toolchains=$(rustup toolchain list) ||
     ! printf '%s\n' "$installed_toolchains" | grep -Eq "^${toolchain}(-|[[:space:]]|$)"; then
     note "toolchain $toolchain is not installed"
-    note 'install it with: make install-build-tools'
+    note 'install it with: netsuke build install-build-tools'
     return 1
   fi
   note "toolchain $toolchain available"
@@ -118,7 +118,7 @@ check_toolchain() {
     if ! printf '%s\n' "$installed_components" | awk -v wanted="$package_name" \
       '$1 == wanted || index($1, wanted "-") == 1 { found=1 } END { exit !found }'; then
       note "component $component is not installed for $toolchain"
-      note 'install it with: make install-build-tools'
+      note 'install it with: netsuke build install-build-tools'
       status=1
     fi
   done
