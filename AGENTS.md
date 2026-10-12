@@ -174,8 +174,8 @@ project:
     Linux, and prepends the configured build-tools directory to `PATH`. After
     nextest, it runs `cargo test --workspace --doc --all-features` because
     nextest does not run doctests. Without cargo-nextest, it falls back to
-    `cargo test --all-targets --all-features`, which includes its normal
-    doctest run. Use `netsuke build fmt` to apply Rust and Markdown formatting
+    `cargo test --all-targets --all-features`, which does not run workspace
+    doctests. Use `netsuke build fmt` to apply Rust and Markdown formatting
     fixes reported by the formatter check.
 - Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in the code itself rather than

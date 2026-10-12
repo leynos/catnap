@@ -5,8 +5,8 @@ set.
 
 ## Project guides
 
-- [User guide](users-guide.md) explains how to use the generated project and
-  its public build and test commands.
+- [User guide](users-guide.md) explains the `catnap` command and its
+  user-facing behaviour.
 - [Developer guide](developers-guide.md) explains the local workflow and
   implementation tooling for contributors.
 - [Repository layout](repository-layout.md) explains the generated project's
@@ -40,5 +40,5 @@ set.
 
 - [ADR 001: Cranelift development backend](adr/0001-cranelift-development-backend.md)
   records the nightly development backend choice and stable release boundary.
-- [ADR 002: Netsuke build orchestration](adr/0002-netsuke-build-orchestration.md)
-  records why the repository uses Netsuke instead of Make.
+- [ADR 002](adr/adr-002-netsuke-build-orchestration.md): records why the
+  repository uses Netsuke instead of Make.

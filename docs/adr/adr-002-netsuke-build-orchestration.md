@@ -30,8 +30,8 @@ dependencies, followed by `test-workflow-contracts`. No no-op command is
 required for this dependency-only action.
 
 The Makefile is removed without a compatibility shim. The
-[migration guide](migrations/v0-1-0.md) maps every former named Make target to
-its Netsuke command.
+[migration guide](../migrations/v0-1-0.md) maps every former named Make target
+to its Netsuke command.
 
 ## Alternatives considered
 
@@ -59,8 +59,8 @@ its Netsuke command.
   contracts.
 - The `test` action prefers nextest where installed and then runs workspace
   doctests with `cargo test --workspace --doc --all-features`. When nextest is
-  unavailable, `cargo test --all-targets --all-features` includes its normal
-  doctest run.
+  unavailable, the `cargo test --all-targets --all-features` fallback does not
+  run workspace doctests.
 - Local users and CI need the pinned nightly toolchain and Ninja. CI installs
   `netsuke-build` v0.1.0-beta4 and caches the executable using the version,
   runner platform, architecture, and installation toolchain.

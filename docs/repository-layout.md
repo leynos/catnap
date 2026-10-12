@@ -24,7 +24,10 @@ omits build output such as `target/`.
 ├── docs/
 │   ├── contents.md
 │   ├── adr/
-│   │   └── 0001-cranelift-development-backend.md
+│   │   ├── 0001-cranelift-development-backend.md
+│   │   └── adr-002-netsuke-build-orchestration.md
+│   ├── migrations/
+│   │   └── v0-1-0.md
 │   ├── developers-guide.md
 │   ├── repository-layout.md
 │   ├── users-guide.md
@@ -84,10 +87,13 @@ omits build output such as `target/`.
 - `docs/`: Holds long-lived reference documentation, guides, style rules, and
   design material.
 - `docs/adr/`: Holds accepted, numbered Architectural Decision Records.
+- `docs/migrations/`: Holds guides for moving from retired interfaces to their
+  replacements.
+- `docs/migrations/v0-1-0.md`: Maps former Make targets to Netsuke actions.
 - `docs/contents.md`: Indexes the documentation set and should be updated when
   documentation files are added, renamed, or removed.
-- `docs/users-guide.md`: Explains how to use the generated project and its
-  public build and test commands.
+- `docs/users-guide.md`: Explains how to use the `catnap` command and its
+  user-facing behaviour.
 - `docs/developers-guide.md`: Explains the contributor workflow and local
   tooling used to work on the generated project.
 - `docs/repository-layout.md`: Documents the repository tree and path

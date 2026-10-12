@@ -5,26 +5,29 @@ accepted [Cranelift build decision](adr/0001-cranelift-development-backend.md)
 records the compatibility evidence and limits behind the development default.
 
 The accepted build orchestration decision records why the repository uses
-Netsuke instead of Make ([ADR 002](adr/0002-netsuke-build-orchestration.md)).
-Contributors moving from the former Make targets can consult the
-[migration guide](migrations/v0-1-0.md).
+Netsuke instead of Make, as recorded in
+[ADR 002](adr/adr-002-netsuke-build-orchestration.md). Use
+`netsuke help targets` to list public actions and descriptions. The
+[migration guide](migrations/v0-1-0.md) maps former Make targets; the sections
+below cover validation and local setup.
 
 ## Local Workflow
 
 Use `netsuke` as the public entrypoint for formatting, linting, and tests. The
-default `all` action runs its formatting, lint, test, spelling, and
-workflow-contract gates sequentially. The separate `markdownlint` and `nixie`
-actions validate Markdown and Mermaid diagrams. `netsuke build lint` runs
-rustdoc, Clippy, Whitaker, yamllint, and actionlint. Whitaker runs with
-warnings denied and without the development frontend or linker flags. CI
-installs the rolling suite with the pinned shared `install-whitaker` action,
-which verifies the default installer binary and refuses a source-build
-fallback. The suite version is not overridden. `netsuke build test` prefers
-`cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
-available on `PATH`; its executable lookup excludes the workspace. Since
-nextest does not execute doctests, the nextest route follows with
-`cargo test --workspace --doc --all-features`; the Cargo fallback runs its
-normal doctests. `netsuke build coverage` uses `cargo llvm-cov` with `lld`.
+default `all` action runs its formatting, lint, test, spelling, and workflow
+contract gates sequentially, with `test-workflow-contracts` last. The separate
+`markdownlint` and `nixie` actions validate Markdown and Mermaid diagrams.
+`netsuke build lint` runs rustdoc, Clippy, Whitaker, yamllint, and actionlint.
+Whitaker runs with warnings denied and without the development frontend or
+linker flags. CI installs the rolling suite with the pinned shared
+`install-whitaker` action, which verifies the default installer binary and
+refuses a source-build fallback. The suite version is not overridden.
+`netsuke build test` prefers `cargo nextest run` and falls back to `cargo test`
+when cargo-nextest is not available on `PATH`; its executable lookup excludes
+the workspace. Since nextest does not execute doctests, the nextest route
+follows with `cargo test --workspace --doc --all-features`. The
+`cargo test --all-targets --all-features` fallback does not run workspace
+doctests. `netsuke build coverage` uses `cargo llvm-cov` with `lld`.
 
 ### YAML lint
 
@@ -221,12 +224,15 @@ linker runs. `tests/linker_provisioning_contract.rs` reads the parsed
 `setup-rust` step of each CI workflow and asserts both inputs are `'true'` and
 that no step installs a linker by hand.
 
-The public Netsuke action cases live in
-`tests/netsuke_actions/public_actions.rs` to keep test files below 400 lines.
-`tests/netsuke_support/git.rs` initializes private Git indexes and placeholder
-YAML only for the action and workflow-lint sandboxes; it does not touch the
-repository index. The Markdown selection tests use a separate fixture that
-commits their tracked examples, so this helper is not a general Git abstraction.
+Public action cases live in `tests/netsuke_actions/public_actions.rs` to keep
+test files below 400 lines. `tests/netsuke_support/git.rs` initializes private
+Git indexes and placeholder YAML only for action and workflow-lint sandboxes;
+it does not touch the repository index. The Markdown selection fixture commits
+its own tracked examples, so this is not a general Git abstraction. Other
+helpers are similarly narrow: `observed_rustflags` in
+`tests/build_standard_support/netsuke.rs` decodes fake-Cargo logs only, while
+`ninja_output` and `NinjaLaunchError` in
+`tests/build_tools_contract/support.rs` add plan-inspector spawn context only.
 
 ### Markdown formatting and lint
 
