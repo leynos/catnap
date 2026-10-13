@@ -42,11 +42,14 @@ Remaining time is printed using the current environment locale. The locale must
 be captured through a small formatting boundary so tests can verify the
 selected language without relying on host locale state.
 
-Timing must use dependency injection. Core sleep orchestration receives a
-monotonic clock trait. Tests use `mockall` to mock that trait. The binary uses
-a real monotonic clock backed by `std::time::Instant`. End-to-end tests must be
-able to run quickly through a private, hidden argument that changes the real
-duration of one logical second.
+Timing must use dependency injection. Core sleep orchestration receives the
+`MonotonicClock` trait from Monotony. The binary uses Monotony's
+`StdMonotonicClock` for observation, while Catnap's `LogicalSleeper` and
+`ThreadLogicalSleeper` own logical-time scaling and blocking sleep. Runner
+tests pair Monotony's `SharedManualMonotonicClock` with a local advancing
+`LogicalSleeper` test double. End-to-end tests must be able to run quickly
+through a private, hidden argument that changes the real duration of one
+logical second.
 
 The requested tests are mandatory: unit tests with `rstest`, behavioural tests
 with `rstest-bdd`, snapshot tests with `insta`, and end-to-end tests. The
@@ -107,7 +110,7 @@ test bodies rather than shared production paths.
 - [x] 2026-06-01: Implemented the duration parser, progress cadence selection,
   locale-aware remaining-time formatter, injected monotonic clock, real clock,
   and binary wiring.
-- [x] 2026-06-01: Added unit tests using `rstest` and `mockall`.
+- [x] 2026-06-01: Added unit tests using `rstest`.
 - [x] 2026-06-01: Added behavioural tests using `rstest-bdd`.
 - [x] 2026-06-01: Added snapshot tests using `insta`.
 - [x] 2026-06-01: Added end-to-end tests that use the hidden logical-second
@@ -131,13 +134,19 @@ test bodies rather than shared production paths.
   fixture ownership in the repository layout.
 - [x] 2026-08-08: `make test` passed with 27 tests across six binaries, and
   `cargo test --doc` passed with 14 doctests.
+- [x] 2026-09-04: Adopted Monotony's clock for monotonic observation and moved
+  logical-time scaling and blocking sleep to Catnap's sleeper types. Runner
+  tests now use `SharedManualMonotonicClock` and a local advancing
+  `LogicalSleeper` test double.
 
 Completed implementation checklist:
 
 - [x] Implement the duration parser, progress cadence selection, locale-aware
-  remaining-time formatter, injected monotonic clock, real clock, and binary
-  wiring.
-- [x] Add unit tests using `rstest` and `mockall`.
+  remaining-time formatter, Monotony clock observation, Catnap's logical
+  sleeper policy, and binary wiring.
+- [x] Add unit tests using `rstest` and deterministic runner tests pairing
+  `SharedManualMonotonicClock` with a local advancing `LogicalSleeper` test
+  double.
 - [x] Add behavioural tests using `rstest-bdd`.
 - [x] Add snapshot tests using `insta`.
 - [x] Add end-to-end tests that use the hidden logical-second duration
@@ -209,28 +218,34 @@ targets sequentially with `tee`, using log paths under `/tmp` such as
 `/tmp/check-fmt-vsleep-initial-app.out`.
 
 Second, add the dependencies required by the design in `Cargo.toml`. The
-runtime dependencies are `thiserror` for typed library errors and `sys-locale`
-for current-locale discovery. The dev-dependencies are `rstest`, `mockall`,
-`assert_cmd`, `predicates`, `insta`, `rstest-bdd`, `rstest-bdd-macros`, and
-`serde_json`.
+runtime dependencies are `monotony` for monotonic clock observation,
+`thiserror` for typed library errors, and `sys-locale` for current-locale
+discovery. The dev-dependencies include `monotony` with its `test-util` feature
+for deterministic manual-clock tests, alongside `assert_cmd`, `cap-std`,
+`insta`, `predicates`, `proptest`, `rstest`, `rstest-bdd`, `rstest-bdd-macros`,
+`serde_json`, `tempfile`, and `trybuild`.
 
 Third, add `src/lib.rs` and small feature modules. The parser module turns
 operands into a requested logical duration. The scheduler module selects the
-progress interval. The format module renders remaining time for a locale. The
-clock module defines the monotonic clock trait and real implementation. The
-runner module coordinates sleeping, ticking, output, and exit behaviour.
+progress interval. The format module renders remaining time for a locale.
+Monotony's `MonotonicClock` and `StdMonotonicClock` provide monotonic
+observation; Catnap's `LogicalSleeper` and `ThreadLogicalSleeper` own
+logical-time scaling and blocking sleep. The runner module coordinates
+sleeping, ticking, output, and exit behaviour.
 
 Fourth, replace `src/main.rs` with a thin binary boundary. It parses CLI
-arguments, constructs the real clock using the hidden logical-second duration,
-gets the environment locale, invokes the runner, writes errors to standard
-error using `std::io::Write`, and exits with the appropriate code.
+arguments, constructs `StdMonotonicClock` and `ThreadLogicalSleeper` using the
+hidden logical-second duration, gets the environment locale, invokes the
+runner, writes errors to standard error using `std::io::Write`, and exits with
+the appropriate code.
 
 Fifth, replace `tests/stub.rs` with real integration coverage. Unit tests live
-close to the modules they test and use `rstest` and `mockall`. Behavioural
-tests use `rstest-bdd` feature files or scenarios to describe GNU-like operand
-handling and progress cadence. Snapshot tests use `insta` for representative
-progress output in stable locales. End-to-end tests invoke the compiled binary
-with `assert_cmd` and the hidden acceleration option.
+close to the modules they test and use `rstest`. Runner tests pair
+`SharedManualMonotonicClock` with a local advancing `LogicalSleeper` test
+double. Behavioural tests use `rstest-bdd` feature files or scenarios to
+describe GNU-like operand handling and progress cadence. Snapshot tests use
+`insta` for representative progress output in stable locales. End-to-end tests
+invoke the compiled binary with `assert_cmd` and the hidden acceleration option.
 
 Sixth, update `docs/users-guide.md`, `docs/developers-guide.md`, and
 `docs/repository-layout.md` to describe the real command, hidden test-only
@@ -274,23 +289,26 @@ The implementation now ships a GNU-like `vsleep` binary that parses
 remaining-time progress to standard error, keeps standard output empty, and has
 the requested unit, behavioural, snapshot, and end-to-end test coverage.
 
-Completion audit on 2026-06-01:
+Completion audit, originally recorded on 2026-06-01 and updated for the
+2026-09-04 clock migration:
 
 - Plan requested: satisfied by this ExecPlan and commits `aed5a25`, `fd94ae8`,
   and `10273a6`.
 - Rust version of `sleep`: satisfied by `src/main.rs`, `src/lib.rs`, and
   `src/cli.rs`, with help and invalid-operand behaviour verified by
   `tests/e2e.rs`.
-- Monotonic stopwatch: satisfied by `MonotonicClock`, `MonotonicTimestamp`,
-  and `RealMonotonicClock` in `src/clock.rs`, with runner dependency injection
-  in `src/runner.rs`.
+- Monotonic stopwatch: observation uses Monotony's `MonotonicClock` and
+  `StdMonotonicClock`. Catnap's `LogicalSleeper` and `ThreadLogicalSleeper` own
+  logical-time scaling and blocking sleep, with runner dependency injection in
+  `src/runner.rs`.
 - Remaining-time cadence: satisfied by `report_interval` in `src/duration.rs`
   and unit tests covering greater than one minute, one minute or less, and
   twenty seconds or less.
 - Locale formatting: satisfied by `format_remaining_time` in `src/format.rs`
   and tests for English, French, and fallback locales.
-- Required tests: satisfied by `rstest` unit tests, `mockall` runner tests,
-  `rstest-bdd` scenarios, `insta` snapshots, and accelerated e2e tests.
+- Required tests: satisfied by `rstest` unit tests, runner tests pairing
+  `SharedManualMonotonicClock` with a local advancing `LogicalSleeper` test
+  double, `rstest-bdd` scenarios, `insta` snapshots, and accelerated e2e tests.
 - Hidden e2e second duration: satisfied by `--logical-second-ms` in
   `src/cli.rs`, verified by e2e tests and manual help output showing the option
   is omitted.

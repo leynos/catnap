@@ -17,6 +17,12 @@ set.
 - [Build orchestration migration guide](migrations/v0-1-0.md) maps the former
   Make targets to the Netsuke commands and documents migration considerations.
 
+## Architecture decisions
+
+- [ADR 001: Adopt Monotony for monotonic time](adr-001-adopt-monotony-clock.md)
+  records the ownership boundary between Monotony's clock and Catnap's
+  logical-time sleeper.
+
 ## Rust reference material
 
 - [Reliable testing in Rust via dependency injection](reliable-testing-in-rust-via-dependency-injection.md)
