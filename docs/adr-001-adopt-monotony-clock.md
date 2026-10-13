@@ -18,10 +18,10 @@ observation boundary broader than necessary and coupled deterministic tests to
 Catnap's clock implementation.
 
 The dependency must remain small, usable by synchronous runner code, and
-testable without waiting on wall-clock time. [Monotony](https://docs.rs/monotony/1.0.0/monotony/)
-provides a dependency-free `MonotonicClock` abstraction and deterministic
-manual-clock utilities, but it does not own Catnap's application-specific
-scaling or sleeper policy.
+testable without waiting on wall-clock time.
+[Monotony](https://docs.rs/monotony/1.0.0/monotony/) provides a dependency-free
+`MonotonicClock` abstraction and deterministic manual-clock utilities, but it
+does not own Catnap's application-specific scaling or sleeper policy.
 
 ## Decision drivers
 
@@ -32,11 +32,11 @@ scaling or sleeper policy.
 
 ## Options considered
 
-| Option | Ownership | Dependency | Scaling | Testability |
-| --- | --- | --- | --- | --- |
-| Retain Catnap's combined clock | Catnap owns observation, scaling, and sleep | None | Built into the clock | Requires Catnap's own manual-clock implementation |
-| Adopt Monotony as a drop-in replacement | Monotony owns observation; scaling and sleep have no owner | Monotony | Scaling and sleep policy are lost | Manual observation is available, but sleeper orchestration is absent |
-| Adopt Monotony for observation and retain Catnap's sleeper | Monotony owns observation; Catnap owns scaling and sleep | Monotony | Catnap retains logical-time scaling | Shared manual clock with a local advancing sleeper |
+| Option                                                     | Ownership                                                  | Dependency | Scaling                             | Testability                                                          |
+| ---------------------------------------------------------- | ---------------------------------------------------------- | ---------- | ----------------------------------- | -------------------------------------------------------------------- |
+| Retain Catnap's combined clock                             | Catnap owns observation, scaling, and sleep                | None       | Built into the clock                | Requires Catnap's own manual-clock implementation                    |
+| Adopt Monotony as a drop-in replacement                    | Monotony owns observation; scaling and sleep have no owner | Monotony   | Scaling and sleep policy are lost   | Manual observation is available, but sleeper orchestration is absent |
+| Adopt Monotony for observation and retain Catnap's sleeper | Monotony owns observation; Catnap owns scaling and sleep   | Monotony   | Catnap retains logical-time scaling | Shared manual clock with a local advancing sleeper                   |
 
 _Table 1: Comparison of clock-adoption options._
 
