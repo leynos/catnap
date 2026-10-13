@@ -21,6 +21,10 @@ fn public_error_display_output() {
 }
 
 /// Compiles the public runner contract from an external crate.
+#[cfg_attr(
+    coverage,
+    ignore = "trybuild subprocesses cannot use LLVM coverage with Cranelift"
+)]
 #[test]
 fn public_runner_contract() {
     let cases = trybuild::TestCases::new();
