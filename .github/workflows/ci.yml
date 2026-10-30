@@ -89,7 +89,7 @@ jobs:
       - name: Test public error UI contracts
         run: netsuke build test-ui
       - name: Install Whitaker
-        uses: leynos/shared-actions/.github/actions/install-whitaker@ff1dd759dfffc0db3459e30e833f52437ee62b57
+        uses: leynos/shared-actions/.github/actions/install-whitaker@5a99aed78ce68dcebd3052b75c31e6f173162b1e
       - name: Install the YAML lint tools
         uses: leynos/shared-actions/.github/actions/install-yaml-lint@26c918632c5413039a84358fafe012a4399a9ec7
       - name: Lint
