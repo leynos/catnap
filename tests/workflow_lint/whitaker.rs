@@ -15,7 +15,7 @@ use super::{
 
 const ACTION: &str = concat!(
     "leynos/shared-actions/.github/actions/install-whitaker@",
-    "ff1dd759dfffc0db3459e30e833f52437ee62b57"
+    "5a99aed78ce68dcebd3052b75c31e6f173162b1e"
 );
 
 /// Reports a consumer that bypasses the pinned action or its defaults.
@@ -118,7 +118,7 @@ fn ci_installs_whitaker_through_the_pinned_action() {
 /// Each deprecated installation route must make the consumer contract fail.
 #[rstest]
 #[case::unreviewed_ref(
-    "install-whitaker@ff1dd759dfffc0db3459e30e833f52437ee62b57",
+    "install-whitaker@5a99aed78ce68dcebd3052b75c31e6f173162b1e",
     "install-whitaker@main"
 )]
 #[case::suite_override(
