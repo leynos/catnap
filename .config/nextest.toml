@@ -4,10 +4,10 @@
 # dependency graph in a nested Cargo and a pull request has no warm sccache directory
 # until the default branch has written one.
 #
-# The tests that start a compiler (the trybuild `ui` target and the Cargo-boundary
-# footprint and end-to-end tests) share one serial group, so their builds do not compete
-# for cores or the package-cache lock, and a whole run is bounded by `global-timeout` as
-# well as by each test's allowance (the Concordat `nested-cargo-nextest` rule).
+# The tests that start a compiler (the trybuild `ui` target and the end-to-end
+# tests) share one serial group, so their builds do not compete for cores or the
+# package-cache lock, and a whole run is bounded by `global-timeout` as well as by
+# each test's allowance (the Concordat `nested-cargo-nextest` rule).
 [test-groups]
 nested-cargo = { max-threads = 1 }
 
@@ -16,7 +16,7 @@ slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 global-timeout = "90m"
 
 [[profile.default.overrides]]
-filter = 'binary(ui) | binary(build_footprint_contract) | binary(e2e)'
+filter = 'binary(ui) | binary(e2e)'
 test-group = 'nested-cargo'
 
 [[profile.default.overrides]]

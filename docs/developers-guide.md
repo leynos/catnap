@@ -244,9 +244,8 @@ incremental builds). `.cargo/config.toml` also sets
 `[unstable] embed-metadata = false`, the native Cargo key for nightlies from
 2026-07-31, so Cargo coordinates metadata output itself. No raw rustc metadata
 flags are used, and the pin is not moved to suit the key.
-`tests/build_footprint_contract.rs` holds all three settings and proves them,
-with both overrides, at the Cargo boundary by building a one-file crate under
-the repository's own `[profile.dev]` table and Cargo configuration.
+`tests/build_footprint_contract.rs` holds all three settings and reads them by
+parsing the repository's own configuration. It starts no Cargo process.
 
 ### Markdown formatting and lint
 
@@ -271,12 +270,11 @@ default branch has written one (`setup-rust` owns that directory and only a
 push to the default branch writes it). Before that cache exists, the nested
 build alone can exceed 180 s on a GitHub-hosted runner.
 
-The tests that start a compiler (the `ui` target, `build_footprint_contract` and
-`e2e`) run in one serial `nested-cargo` test group with `max-threads = 1`, so
-their builds do not compete for cores or the package-cache lock, and
-`global-timeout = "90m"` bounds a whole run that a hung build would otherwise
-leave to the job's ceiling. Add a new test that spawns Cargo or `rustc` to the
-group's filter.
+The tests that start a compiler (the `ui` target and `e2e`) run in one serial
+`nested-cargo` test group with `max-threads = 1`, so their builds do not compete
+for cores or the package-cache lock, and `global-timeout = "90m"` bounds a whole
+run that a hung build would otherwise leave to the job's ceiling. Add a new test
+that spawns Cargo or `rustc` to the group's filter.
 
 The coverage action marks the two trybuild tests ignored because their nested
 Cargo processes reload the Cranelift development flags while LLVM coverage adds
