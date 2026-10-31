@@ -73,19 +73,49 @@ fn the_cargo_configuration_disables_metadata_embedding_natively() {
     );
 }
 
+/// Returns the `rustflags` values that Cargo reads from `[build]` and `[target.*]`.
+fn rustflags_values(config: &toml::Table) -> Vec<&toml::Value> {
+    let build = config
+        .get("build")
+        .and_then(toml::Value::as_table)
+        .and_then(|build| build.get("rustflags"));
+    let targets = config
+        .get("target")
+        .and_then(toml::Value::as_table)
+        .into_iter()
+        .flat_map(toml::Table::values)
+        .filter_map(toml::Value::as_table)
+        .filter_map(|target| target.get("rustflags"));
+    build.into_iter().chain(targets).collect()
+}
+
+/// Returns whether a `rustflags` value, a string or an array of strings, carries a raw
+/// metadata flag.
+fn carries_metadata_flag(value: &toml::Value) -> bool {
+    match value {
+        toml::Value::String(flags) => flags
+            .split_whitespace()
+            .any(|flag| flag.contains("embed-metadata")),
+        toml::Value::Array(flags) => flags
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .any(|flag| flag.contains("embed-metadata")),
+        _ => false,
+    }
+}
+
 /// Scenario: every `rustflags` source in the Cargo configuration.
 ///
-/// Invariant: none carries a raw rustc metadata flag.
+/// Invariant: none carries a raw rustc metadata flag. The configuration is parsed as TOML, so a
+/// quoted key or a multiline array is read as Cargo reads it.
 #[test]
 fn no_rustflags_source_carries_a_raw_metadata_flag() {
-    let flags: Vec<&str> = CARGO_CONFIG
-        .lines()
-        .map(|line| line.split('#').next().unwrap_or("").trim())
-        .filter(|line| line.starts_with("rustflags"))
-        .collect();
+    let config: toml::Table =
+        toml::from_str(CARGO_CONFIG).expect("the Cargo configuration must be valid TOML");
+    let flags = rustflags_values(&config);
     assert!(!flags.is_empty(), "expected at least one rustflags source");
     assert!(
-        flags.iter().all(|line| !line.contains("embed-metadata")),
+        flags.iter().all(|value| !carries_metadata_flag(value)),
         "no raw embed-metadata flag may appear in rustflags: {flags:?}"
     );
 }
