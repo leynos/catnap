@@ -122,11 +122,11 @@ fn lint_target_fails_when_a_workflow_linter_is_missing(
         !output.status.success(),
         "netsuke build lint unexpectedly succeeded"
     );
-    assert!(
+    assert_eq!(
         sandbox
             .workflow_linter_invocations()
-            .expect("read workflow linter invocations")
-            .is_empty()
+            .expect("read workflow linter invocations"),
+        [] as [std::string::String; 0]
     );
 }
 

@@ -145,7 +145,7 @@ fn deprecated_whitaker_routes_are_refused(#[case] old: &str, #[case] replacement
     let workflow = read_repository_file(".github/workflows/ci.yml").expect("read CI workflow");
     let changed = workflow.replacen(old, replacement, 1);
     assert_ne!(changed, workflow, "mutation did not change CI");
-    assert!(!installation_problems(&changed).is_empty());
+    assert_ne!(installation_problems(&changed), [] as [&str; 0]);
 }
 
 /// The installer cannot be skipped or allowed to fail while later gates run.
@@ -203,11 +203,11 @@ fn lint_propagates_a_failing_whitaker(lint_sandbox: Result<LintSandbox, Box<dyn 
             .iter()
             .any(|call| call.starts_with("whitaker\t--all\t--"))
     );
-    assert!(
+    assert_eq!(
         sandbox
             .workflow_linter_invocations()
-            .expect("read later calls")
-            .is_empty()
+            .expect("read later calls"),
+        [] as [std::string::String; 0]
     );
 }
 

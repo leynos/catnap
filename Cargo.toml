@@ -23,6 +23,13 @@ pkg-url = "https://github.com/leynos/catnap/releases/download/v{ version }/catna
 pkg-fmt = "bin"
 disabled-strategies = ["quick-install", "compile"]
 
+# Development builds keep neither incremental state nor debug information (rule
+# `rust-dev-build-footprint`, DF-001 and DF-002). Set CARGO_PROFILE_DEV_DEBUG=true
+# to debug, or CARGO_INCREMENTAL=1 to rebuild incrementally.
+[profile.dev]
+incremental = false
+debug = 0
+
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 

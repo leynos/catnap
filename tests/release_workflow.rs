@@ -54,8 +54,9 @@ fn legs(workflow: &Value) -> Vec<&Mapping> {
                 .get("include")
         })
         .and_then(Value::as_sequence)
-        .map(|legs| legs.iter().filter_map(Value::as_mapping).collect())
-        .unwrap_or_default()
+        .map_or_else(Default::default, |legs| {
+            legs.iter().filter_map(Value::as_mapping).collect()
+        })
 }
 
 /// Returns a mapping's string value for a key.

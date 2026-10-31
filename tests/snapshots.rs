@@ -33,7 +33,7 @@ fn snapshots_compound_duration_diagnostic() {
         &mut stderr,
     );
 
-    assert!(stdout.is_empty());
+    assert_eq!(stdout, [] as [u8; 0]);
     insta::assert_snapshot!(
         String::from_utf8(stderr).expect("diagnostic should be valid UTF-8"),
         @r###"

@@ -211,10 +211,10 @@ fn matrix_include_runner_forms_are_checked() {
         .expect("parse matrix fixture"),
     );
 
-    assert!(
+    assert_eq!(
         workflow_violations(&workflow, "matrix-runner.yml")
-            .expect("matrix include runners are classifiable")
-            .is_empty()
+            .expect("matrix include runners are classifiable"),
+        [] as [std::string::String; 0]
     );
 }
 

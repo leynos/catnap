@@ -234,6 +234,20 @@ helpers are similarly narrow: `observed_rustflags` in
 `ninja_output` and `NinjaLaunchError` in
 `tests/build_tools_contract/support.rs` add plan-inspector spawn context only.
 
+### Development build footprint
+
+The development profile sets `incremental = false` and `debug = 0` in
+`Cargo.toml`, so a dev build keeps no incremental state or debug information.
+To debug, set `CARGO_PROFILE_DEV_DEBUG=true`; to rebuild incrementally, set
+`CARGO_INCREMENTAL=1` (unset any `sccache` wrapper first, which refuses
+incremental builds). `.cargo/config.toml` also sets
+`[unstable] embed-metadata = false`, the native Cargo key for nightlies from
+2026-07-31, so Cargo coordinates metadata output itself. No raw rustc metadata
+flags are used, and the pin is not moved to suit the key.
+`tests/build_footprint_contract.rs` holds all three settings and proves them,
+with both overrides, at the Cargo boundary by building a one-file crate under
+the repository's own `[profile.dev]` table and Cargo configuration.
+
 ### Markdown formatting and lint
 
 `netsuke build fmt` and `netsuke build check-fmt` use `mdtablefix` with
@@ -273,6 +287,11 @@ rejects the repository configuration. The release jobs instead set `RUSTFLAGS`
 to an empty value, which displaces the nightly flags in `.cargo/config.toml`
 before stable rustc runs. The measured `aarch64-unknown-linux-gnu` Cross
 release build passed with that exact override and the image's `cc` linker.
+
+The whole suite was measured under the development flags on the pinned
+`nightly-2026-10-30` on 2026-10-31: all 353 nextest tests pass, with the two
+trybuild UI targets left to `netsuke build test-ui`, which CI runs separately
+(a cold local cache exceeds their allowance).
 
 `tests/build_backend_contract.rs` rejects profile-level backend keys while the
 release workflow uses stable. `tests/release_workflow.rs` requires empty

@@ -14,7 +14,7 @@ mod support;
 use support::{BuildToolsSandbox, build_tools_sandbox};
 
 const PINNED_MOLD_VERSION: &str = "2.41.0";
-const PINNED_TOOLCHAIN: &str = "nightly-2026-05-28";
+const PINNED_TOOLCHAIN: &str = "nightly-2026-10-30";
 
 #[cfg(target_os = "linux")]
 #[rstest]
