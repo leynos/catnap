@@ -67,7 +67,7 @@ jobs:
       - name: Format
         run: netsuke build check-fmt
       - name: Markdown lint
-        uses: DavidAnson/markdownlint-cli2-action@34ef37bc394c352fcc5322bd95da85f0d23a8caf
+        uses: DavidAnson/markdownlint-cli2-action@b4f136db4a9d2ffff88d04cf1328773cb4a1c7ab
         with:
           globs: '**/*.md'
       - name: Setup uv
