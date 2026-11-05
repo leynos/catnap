@@ -4,9 +4,10 @@ use std::error::Error;
 
 use rstest::rstest;
 
-use super::support::{BuildToolsSandbox, build_tools_sandbox};
-
-const PINNED_TOOLCHAIN: &str = "nightly-2026-10-30";
+use super::{
+    PINNED_TOOLCHAIN,
+    support::{BuildToolsSandbox, build_tools_sandbox},
+};
 const FIXTURE_ARCHIVE_SHA256: &str =
     "b82d14bd3717287c78a2e1351107a49a925192cae59c0f844437eed8a0d6caef";
 

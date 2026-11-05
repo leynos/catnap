@@ -14,7 +14,48 @@ mod support;
 use support::{BuildToolsSandbox, build_tools_sandbox};
 
 const PINNED_MOLD_VERSION: &str = "2.41.0";
-const PINNED_TOOLCHAIN: &str = "nightly-2026-10-30";
+/// The repository's toolchain file: the single source of the pinned channel,
+/// which Dependabot moves.
+const TOOLCHAIN_FILE: &str =
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/rust-toolchain.toml"));
+
+/// The pinned channel, read from `rust-toolchain.toml` on first use.
+struct PinnedToolchain;
+
+impl PinnedToolchain {
+    /// Parses the channel out of the toolchain file.
+    fn channel() -> &'static str {
+        static CHANNEL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        CHANNEL
+            .get_or_init(|| {
+                let parsed: toml::Table = TOOLCHAIN_FILE
+                    .parse()
+                    .expect("rust-toolchain.toml must parse as TOML");
+                parsed
+                    .get("toolchain")
+                    .and_then(|toolchain| toolchain.get("channel"))
+                    .and_then(toml::Value::as_str)
+                    .expect("rust-toolchain.toml must name a channel")
+                    .to_owned()
+            })
+            .as_str()
+    }
+}
+
+impl std::ops::Deref for PinnedToolchain {
+    type Target = str;
+
+    fn deref(&self) -> &str { Self::channel() }
+}
+
+impl std::fmt::Display for PinnedToolchain {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(Self::channel())
+    }
+}
+
+/// Stands for the pinned channel wherever the tests name it.
+const PINNED_TOOLCHAIN: PinnedToolchain = PinnedToolchain;
 
 #[cfg(target_os = "linux")]
 #[rstest]
@@ -30,7 +71,7 @@ fn pinned_prefix_mold_wins_over_an_earlier_wrong_version(
         .expect("write earlier wrong-version mold");
     sandbox.write_clang().expect("write fake clang");
     sandbox
-        .write_rustup(PINNED_TOOLCHAIN)
+        .write_rustup(&PINNED_TOOLCHAIN)
         .expect("write fake rustup");
 
     let output = sandbox
@@ -65,7 +106,7 @@ fn wrong_prefix_mold_stops_build_with_install_hint_before_cargo(
         .expect("write later pinned mold");
     sandbox.write_clang().expect("write fake clang");
     sandbox
-        .write_rustup(PINNED_TOOLCHAIN)
+        .write_rustup(&PINNED_TOOLCHAIN)
         .expect("write fake rustup");
 
     let output = sandbox
@@ -132,7 +173,7 @@ fn missing_pinned_toolchain_component_reports_install_hint(
     sandbox.write_clang().expect("write fake clang");
     sandbox
         .write_rustup_with_components(
-            PINNED_TOOLCHAIN,
+            &PINNED_TOOLCHAIN,
             concat!(
                 "clippy-x86_64-unknown-linux-gnu\n",
                 "llvm-tools-x86_64-unknown-linux-gnu\n",
@@ -165,7 +206,7 @@ fn toolchain_check_does_not_require_local_linkers(
 ) {
     let sandbox = build_tools_sandbox.expect("create build-tools sandbox");
     sandbox
-        .write_rustup(PINNED_TOOLCHAIN)
+        .write_rustup(&PINNED_TOOLCHAIN)
         .expect("write fake rustup");
 
     let output = sandbox
@@ -214,7 +255,7 @@ fn coverage_check_rejects_unusable_lld_before_cargo(
     sandbox.write_clang().expect("write fake clang");
     sandbox.write_lld().expect("write fake lld");
     sandbox
-        .write_rustup(PINNED_TOOLCHAIN)
+        .write_rustup(&PINNED_TOOLCHAIN)
         .expect("write fake rustup");
 
     let output = sandbox
@@ -246,7 +287,7 @@ fn coverage_check_rejects_unusable_clang_before_cargo(
     sandbox.write_broken_clang().expect("write broken clang");
     sandbox.write_usable_lld().expect("write usable lld");
     sandbox
-        .write_rustup(PINNED_TOOLCHAIN)
+        .write_rustup(&PINNED_TOOLCHAIN)
         .expect("write fake rustup");
 
     let output = sandbox
