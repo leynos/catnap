@@ -21,7 +21,7 @@ fn missing_cranelift_component_reports_install_hint(
     sandbox.write_clang().expect("write fake clang");
     sandbox
         .write_rustup_with_components(
-            PINNED_TOOLCHAIN,
+            &PINNED_TOOLCHAIN,
             concat!(
                 "clippy-x86_64-unknown-linux-gnu\n",
                 "llvm-tools-x86_64-unknown-linux-gnu\n",
@@ -60,7 +60,7 @@ fn missing_rust_analyzer_reports_install_hint(
     sandbox.write_clang().expect("write fake clang");
     sandbox
         .write_rustup_with_components(
-            PINNED_TOOLCHAIN,
+            &PINNED_TOOLCHAIN,
             concat!(
                 "clippy-x86_64-unknown-linux-gnu\n",
                 "llvm-tools-x86_64-unknown-linux-gnu\n",
@@ -98,7 +98,7 @@ fn coverage_prerequisites_do_not_require_the_development_backend(
     sandbox.write_usable_lld().expect("write fake lld");
     sandbox
         .write_rustup_with_components(
-            PINNED_TOOLCHAIN,
+            &PINNED_TOOLCHAIN,
             concat!(
                 "clippy-x86_64-unknown-linux-gnu\n",
                 "llvm-tools-x86_64-unknown-linux-gnu\n",
