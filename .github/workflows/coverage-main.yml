@@ -62,6 +62,12 @@ jobs:
           # so pull requests warm from the lane main's publisher writes.
           sccache-cache-discriminator: coverage
           install-clang-lld: 'true'
+      # The suite includes formatter-boundary tests that run mdtablefix as a
+      # subprocess, as ci.yml's build-test job does.
+      - name: Install mdtablefix
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@0606ca899ce2995a0c4bc78e660e80832e6e8855
+        with:
+          version: "0.6.1"
       - name: Cache Netsuke
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
