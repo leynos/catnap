@@ -10,52 +10,13 @@ mod components;
 mod installer;
 #[path = "build_tools_contract/support.rs"]
 mod support;
+#[path = "build_tools_contract/toolchain.rs"]
+mod toolchain;
 
 use support::{BuildToolsSandbox, build_tools_sandbox};
+use toolchain::PINNED_TOOLCHAIN;
 
 const PINNED_MOLD_VERSION: &str = "2.41.0";
-/// The repository's toolchain file: the single source of the pinned channel,
-/// which Dependabot moves.
-const TOOLCHAIN_FILE: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/rust-toolchain.toml"));
-
-/// The pinned channel, read from `rust-toolchain.toml` on first use.
-struct PinnedToolchain;
-
-impl PinnedToolchain {
-    /// Parses the channel out of the toolchain file.
-    fn channel() -> &'static str {
-        static CHANNEL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-        CHANNEL
-            .get_or_init(|| {
-                let parsed: toml::Table = TOOLCHAIN_FILE
-                    .parse()
-                    .expect("rust-toolchain.toml must parse as TOML");
-                parsed
-                    .get("toolchain")
-                    .and_then(|toolchain| toolchain.get("channel"))
-                    .and_then(toml::Value::as_str)
-                    .expect("rust-toolchain.toml must name a channel")
-                    .to_owned()
-            })
-            .as_str()
-    }
-}
-
-impl std::ops::Deref for PinnedToolchain {
-    type Target = str;
-
-    fn deref(&self) -> &str { Self::channel() }
-}
-
-impl std::fmt::Display for PinnedToolchain {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(Self::channel())
-    }
-}
-
-/// Stands for the pinned channel wherever the tests name it.
-const PINNED_TOOLCHAIN: PinnedToolchain = PinnedToolchain;
 
 #[cfg(target_os = "linux")]
 #[rstest]
