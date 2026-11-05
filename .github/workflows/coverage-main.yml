@@ -54,7 +54,7 @@ jobs:
       - name: Setup Rust
         # The pull-request lane's revision, so both measurements share one
         # toolchain setup.
-        uses: leynos/shared-actions/.github/actions/setup-rust@b804b69fa7f978cf9091b9d9bd5481d8ce58c2ea
+        uses: leynos/shared-actions/.github/actions/setup-rust@872f59f53717b5bebe8e24b2f4a7496b089a939a
         with:
           install-mold: 'true'
           expect-cache: any
@@ -65,7 +65,7 @@ jobs:
       # The suite includes formatter-boundary tests that run mdtablefix as a
       # subprocess, as ci.yml's build-test job does.
       - name: Install mdtablefix
-        uses: leynos/shared-actions/.github/actions/install-mdtablefix@0606ca899ce2995a0c4bc78e660e80832e6e8855
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@872f59f53717b5bebe8e24b2f4a7496b089a939a
         with:
           version: "0.6.1"
       - name: Cache Netsuke
@@ -94,7 +94,7 @@ jobs:
         # baseline files as the pull-request lane, so the figure written here
         # is the figure a pull request is measured against. The action decides
         # by the event whether it writes the baseline or compares with it.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@d4d248bbbecdcf7b4f5bc79ffd4d6caee370bd79
+        uses: leynos/shared-actions/.github/actions/generate-coverage@872f59f53717b5bebe8e24b2f4a7496b089a939a
         env:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
           RUSTFLAGS: -C link-arg=-fuse-ld=lld
@@ -118,7 +118,7 @@ jobs:
         # uploading a branch CodeScene does not analyse: the push trigger is
         # restricted to `main`, but a dispatch may name any branch.
         if: ${{ steps.codescene-token.outputs.available == 'true' && github.ref == 'refs/heads/main' }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@d4d248bbbecdcf7b4f5bc79ffd4d6caee370bd79
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@872f59f53717b5bebe8e24b2f4a7496b089a939a
         with:
           path: lcov.info
           format: lcov
