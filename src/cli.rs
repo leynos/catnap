@@ -167,8 +167,8 @@ fn next_option_value<I>(iter: &mut I) -> Result<String, CliError>
 where
     I: Iterator<Item = OsString>,
 {
-    iter.next().map_or_else(
-        || {
+    iter.next().map_or(
+        {
             Err(CliError::MissingOptionValue {
                 option: "--logical-second-ms",
             })
