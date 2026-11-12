@@ -13,10 +13,24 @@ use super::{
     write_fake_tool,
 };
 
-const ACTION: &str = concat!(
-    "leynos/shared-actions/.github/actions/install-whitaker@",
-    "5a99aed78ce68dcebd3052b75c31e6f173162b1e"
-);
+/// The shared installer action; Dependabot owns the full commit SHA after `@`.
+const ACTION_PREFIX: &str = "leynos/shared-actions/.github/actions/install-whitaker@";
+
+/// Reports whether `revision` is a full 40-digit hexadecimal commit SHA.
+fn is_full_sha(revision: &str) -> bool {
+    revision.len() == 40
+        && revision
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// Returns the `uses:` value of the live installer step.
+fn live_action(workflow: &str) -> String {
+    let step = workflow_step(workflow, "Install Whitaker").expect("installer step");
+    workflow_step_field(step, "uses")
+        .expect("installer step names its action")
+        .to_owned()
+}
 
 /// Reports a consumer that bypasses the pinned action or its defaults.
 fn installation_problems(workflow: &str) -> Vec<&'static str> {
@@ -37,8 +51,10 @@ fn installation_step_problems(workflow: &str) -> Vec<&'static str> {
 /// Reports pin, input, and failure-handling defects in the installer step.
 fn installation_step_field_problems(step: &str) -> Vec<&'static str> {
     let mut problems = Vec::new();
-    if !workflow_step_field(step, "uses").is_ok_and(|action| action == ACTION) {
-        problems.push("Whitaker action is not pinned to the approved commit");
+    let pinned = workflow_step_field(step, "uses")
+        .is_ok_and(|action| action.strip_prefix(ACTION_PREFIX).is_some_and(is_full_sha));
+    if !pinned {
+        problems.push("Whitaker action is not pinned to a full commit SHA");
     }
     if step.contains("\n        with:") {
         problems.push("Whitaker action overrides its pinned defaults");
@@ -117,10 +133,6 @@ fn ci_installs_whitaker_through_the_pinned_action() {
 
 /// Each deprecated installation route must make the consumer contract fail.
 #[rstest]
-#[case::unreviewed_ref(
-    "install-whitaker@5a99aed78ce68dcebd3052b75c31e6f173162b1e",
-    "install-whitaker@main"
-)]
 #[case::suite_override(
     "      - name: Install Whitaker\n",
     "      - name: Install Whitaker\n        with:\n          suite-version: v1\n"
@@ -144,6 +156,17 @@ fn ci_installs_whitaker_through_the_pinned_action() {
 fn deprecated_whitaker_routes_are_refused(#[case] old: &str, #[case] replacement: &str) {
     let workflow = read_repository_file(".github/workflows/ci.yml").expect("read CI workflow");
     let changed = workflow.replacen(old, replacement, 1);
+    assert_ne!(changed, workflow, "mutation did not change CI");
+    assert_ne!(installation_problems(&changed), [] as [&str; 0]);
+}
+
+/// A rolling ref in place of the live commit SHA must make the contract fail.
+#[test]
+fn rolling_installer_ref_is_refused() {
+    let workflow = read_repository_file(".github/workflows/ci.yml").expect("read CI workflow");
+    let live = live_action(&workflow);
+    let rolling = format!("{ACTION_PREFIX}main");
+    let changed = workflow.replacen(&live, &rolling, 1);
     assert_ne!(changed, workflow, "mutation did not change CI");
     assert_ne!(installation_problems(&changed), [] as [&str; 0]);
 }
@@ -175,7 +198,8 @@ fn installer_bypass_is_refused(#[case] inserted_field: &str, #[case] expected_pr
 #[test]
 fn whitaker_installation_precedes_the_coverage_suite() {
     let workflow = read_repository_file(".github/workflows/ci.yml").expect("read CI workflow");
-    let install_step = format!("      - name: Install Whitaker\n        uses: {ACTION}\n");
+    let live = live_action(&workflow);
+    let install_step = format!("      - name: Install Whitaker\n        uses: {live}\n");
     let without_install = workflow.replacen(&install_step, "", 1);
     assert_ne!(
         without_install, workflow,
