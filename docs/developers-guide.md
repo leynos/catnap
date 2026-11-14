@@ -1,8 +1,10 @@
 # Developer Guide
 
-This guide explains the contributor workflow for the `catnap` command. The
-accepted [Cranelift build decision](adr/0001-cranelift-development-backend.md)
-records the compatibility evidence and limits behind the development default.
+This guide explains the contributor workflow for the `catnap` command. LLVM is
+the default codegen backend; Cranelift is disabled and opt-in only. The
+[Cranelift build decision](adr/0001-cranelift-development-backend.md),
+superseded on 14 November 2026, records the compatibility evidence and limits
+behind the earlier development default.
 
 The accepted build orchestration decision records why the repository uses
 Netsuke instead of Make, as recorded in
@@ -285,7 +287,7 @@ same UI tests with `netsuke build test-ui` before starting coverage, so they
 still gate pull requests; `netsuke build test` includes them in ordinary local
 validation.
 
-### Cranelift development backend
+### Cranelift opt-in
 
 The estate standard is LLVM, which is the default backend here; review is due
 14 May 2027 under the
