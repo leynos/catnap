@@ -66,8 +66,8 @@
   indexes when names or locations change. Keep transient validation results in
   the PR or execution record.
 - **Decision history:** Preserve accepted ADR decisions; record subsequent
-  changes through the
-  [ADR amendment and supersession process](docs/documentation-style-guide.md#architectural-decision-records-adrs).
+  changes by following the
+  [ADR guidance](docs/documentation-style-guide.md#architectural-decision-records-adrs).
   Capture proof-driven API, representation, and invariant decisions in the
   design documentation.
 - **Completed execplans:** Completed execplans are historical documents and
