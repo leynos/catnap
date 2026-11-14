@@ -195,7 +195,7 @@ fn test_action_selects_available_runner(#[case] with_nextest: bool, #[case] expe
             .expect("read environment log")
             .iter()
             .filter(|record| record.starts_with("cargo\t"))
-            .all(|record| record.contains("-D warnings -Zthreads=8 -Zcodegen-backend=cranelift"))
+            .all(|record| record.contains("-D warnings -Zthreads=8"))
     );
 }
 
@@ -255,7 +255,7 @@ fn default_action_stops_at_first_failure() {
 #[rstest]
 #[case::typecheck(
     "typecheck",
-    "cargo\t-D warnings -Zthreads=8 -Zcodegen-backend=cranelift -Clink-arg=-fuse-ld=mold\t\t\t\t"
+    "cargo\t-D warnings -Zthreads=8 -Clink-arg=-fuse-ld=mold\t\t\t\t"
 )]
 #[case::coverage(
     "coverage",
@@ -289,9 +289,8 @@ fn rust_lint_sets_warning_policy() {
     assert_eq!(
         sandbox.environment().expect("read environment log"),
         [
-            "cargo\t-Zthreads=8 -Zcodegen-backend=cranelift -Clink-arg=-fuse-ld=mold\t-D \
-             warnings\t\t\t",
-            "cargo\t-Zthreads=8 -Zcodegen-backend=cranelift -Clink-arg=-fuse-ld=mold\t\t\t\t",
+            "cargo\t-Zthreads=8 -Clink-arg=-fuse-ld=mold\t-D warnings\t\t\t",
+            "cargo\t-Zthreads=8 -Clink-arg=-fuse-ld=mold\t\t\t\t",
             "whitaker\t-D warnings\t\t\t\t",
         ]
     );

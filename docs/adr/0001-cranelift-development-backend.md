@@ -124,3 +124,11 @@ release workflow contract keep that distinction executable.
 
 None. Revisit this decision if Catnap adopts a feature the backend cannot
 compile or if the release toolchain changes.
+
+## Addendum (2026-11-14)
+
+The user abandoned Cranelift for now. The `-Zcodegen-backend=cranelift` flag is
+commented out in `.cargo/config.toml` and the Netsukefile passes no backend
+flag, so LLVM is the default backend. The component, the `install-cranelift`
+action and the opt-in route stay. The estate standard is LLVM, with review due
+14 May 2027, and this supersedes the development default decided above.

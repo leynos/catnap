@@ -162,15 +162,15 @@ project:
     `shellcheck` through the pinned shared `install-yaml-lint` action before
     invoking `netsuke build lint`; CI must not install them by hand.
     For rustdoc and Clippy, Netsuke also preserves inherited `RUSTFLAGS`, adds
-    `-Zthreads=8` and the Cranelift backend, adds the mold linker flag on Linux,
+    `-Zthreads=8` (the backend stays LLVM), adds the mold linker flag on Linux,
     and prepends the configured build-tools directory to `PATH`. Whitaker gets
     only `RUSTFLAGS="-D warnings"`; the extra development flags are
     intentionally excluded.
 
   - `netsuke build test` checks the pinned development toolchain and linker,
     then runs `cargo nextest run --all-targets --all-features` when
-    cargo-nextest is available. It adds `-D warnings`, `-Zthreads=8`, and the
-    Cranelift backend to inherited `RUSTFLAGS`, plus the mold linker flag on
+    cargo-nextest is available. It adds `-D warnings` and `-Zthreads=8` to
+    inherited `RUSTFLAGS` (the backend stays LLVM), plus the mold linker flag on
     Linux, and prepends the configured build-tools directory to `PATH`. After
     nextest, it runs `cargo test --workspace --doc --all-features` because
     nextest does not run doctests. Without cargo-nextest, it falls back to

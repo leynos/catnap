@@ -142,15 +142,17 @@ version, host platform, architecture, and installation toolchain.
 
 ### The build standard
 
-Development, test, lint, and typecheck builds use Cranelift
-(`-Zcodegen-backend=cranelift`) and the parallel `rustc` frontend
-(`-Zthreads=8`), plus the `mold` linker on Linux (`-Clink-arg=-fuse-ld=mold`).
+Development, test, lint, and typecheck builds use LLVM (the default backend)
+and the parallel `rustc` frontend (`-Zthreads=8`), plus the `mold` linker on
+Linux (`-Clink-arg=-fuse-ld=mold`). The Cranelift selection
+(`-Zcodegen-backend=cranelift`) is disabled; see the Cranelift section below.
 These defaults live in `.cargo/config.toml`, which Cargo discovers on its own,
-so a bare `cargo build` gets them. The pinned toolchain includes the Cranelift
-component and `rust-analyzer` for editor integration. `mold` ships for Linux
-only, so the linker flag lives in a Linux-only table and macOS and Windows keep
-their platform linker. Cargo selects one `rustflags` source rather than merging
-them, so every source repeats the development flags apart from the linker.
+so a bare `cargo build` gets them. The pinned toolchain keeps the Cranelift
+component, for an opt-in, and `rust-analyzer` for editor integration. `mold`
+ships for Linux only, so the linker flag lives in a Linux-only table and macOS
+and Windows keep their platform linker. Cargo selects one `rustflags` source
+rather than merging them, so every source repeats the development flags apart
+from the linker.
 
 An assigned `RUSTFLAGS` replaces the configuration's flags, so the development
 build, test, typecheck, and Rust lint actions compose the standard's flags onto
@@ -277,15 +279,26 @@ bounds a whole run that a hung build would otherwise leave to the job's
 ceiling. Add a new test that spawns Cargo or `rustc` to the group's filter.
 
 The coverage action marks the two trybuild tests ignored because their nested
-Cargo processes reload the Cranelift development flags while LLVM coverage adds
-`-C instrument-coverage`, which Cranelift cannot use. CI runs the same UI tests
-with `netsuke build test-ui` before starting coverage, so they still gate pull
-requests; `netsuke build test` includes them in ordinary local validation.
+Cargo processes reload the development configuration while LLVM coverage adds
+`-C instrument-coverage`, which a Cranelift opt-in could not use. CI runs the
+same UI tests with `netsuke build test-ui` before starting coverage, so they
+still gate pull requests; `netsuke build test` includes them in ordinary local
+validation.
 
 ### Cranelift development backend
 
-The accepted [Cranelift decision](adr/0001-cranelift-development-backend.md)
-uses rustc's `-Zcodegen-backend=cranelift` flag for development builds. Cargo's
+The estate standard is LLVM, which is the default backend here; review is due
+14 May 2027 under the
+[estate ADR](https://github.com/leynos/concordat/blob/main/docs/adrs/adr-0004-cranelift-is-not-part-of-the-rust-build-standard.md).
+The Cranelift selection is disabled: the `rustflags` lines in
+`.cargo/config.toml` that add `-Zcodegen-backend=cranelift` are commented out,
+and so is the Netsukefile `vars` block that feeds the same flag into the
+development actions. Uncommenting those is a persistent opt-in that also needs
+`tests/cranelift_backend_contract.rs` and `tests/netsuke_actions.rs` updated;
+Cranelift does not unwind, so no test may rely on a caught panic under it, and
+the component stays in `rust-toolchain.toml`. The earlier
+[Cranelift decision](adr/0001-cranelift-development-backend.md) used rustc's
+`-Zcodegen-backend=cranelift` flag for development builds. Cargo's
 `[profile.dev] codegen-backend` key remains forbidden while release jobs use
 stable Cargo: that profile key is an unstable Cargo setting and stable Cargo
 rejects the repository configuration. The release jobs instead set `RUSTFLAGS`
@@ -293,20 +306,19 @@ to an empty value, which displaces the nightly flags in `.cargo/config.toml`
 before stable rustc runs. The measured `aarch64-unknown-linux-gnu` Cross
 release build passed with that exact override and the image's `cc` linker.
 
-The whole suite was measured under the development flags on the pinned
-`nightly-2026-10-30` on 2026-10-31: all 353 nextest tests pass, with the two
-trybuild UI targets left to `netsuke build test-ui`, which CI runs separately
-(a cold local cache exceeds their allowance).
+The two trybuild UI targets are left to `netsuke build test-ui`, which CI runs
+separately (a cold local cache exceeds their allowance).
 
 `tests/build_backend_contract.rs` rejects profile-level backend keys while the
 release workflow uses stable. `tests/release_workflow.rs` requires empty
 `RUSTFLAGS` on both stable build steps, and
-`tests/cranelift_backend_contract.rs` checks the development flag, pinned
-component, and Netsuke commands. The compatibility experiment covers one stable
-Cross target; a workflow dispatch remains responsible for proving the full
-release matrix. Cranelift's preview backend has unsupported language and
-platform features, so keep coverage on LLVM and revisit this decision if the
-application adds a feature that the backend cannot compile.
+`tests/cranelift_backend_contract.rs` checks that no active configuration
+selects Cranelift, the commented opt-in, the pinned component, and the Netsuke
+commands. The compatibility experiment covers one stable Cross target; a
+workflow dispatch remains responsible for proving the full release matrix.
+Cranelift's preview backend has unsupported language and platform features, so
+keep coverage on LLVM and revisit this decision if the application adds a
+feature that the backend cannot compile.
 
 ### Release builds
 
