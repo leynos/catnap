@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted.
+Accepted on 2026-10-01. Superseded on 2026-11-14 for the development default by
+the
+[concordat ADR-0004](https://github.com/leynos/concordat/blob/main/docs/adrs/adr-0004-cranelift-is-not-part-of-the-rust-build-standard.md):
+LLVM is the default backend and Cranelift is disabled and opt-in only. See the
+addendum below.
 
 ## Date
 

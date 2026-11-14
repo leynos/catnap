@@ -45,6 +45,7 @@ set.
 ## Accepted decisions
 
 - [ADR 001: Cranelift development backend](adr/0001-cranelift-development-backend.md)
-  records the nightly development backend choice and stable release boundary.
+  records the superseded nightly Cranelift development choice, the stable
+  release boundary, and the LLVM default that replaced it on 14 November 2026.
 - [ADR 002](adr/adr-002-netsuke-build-orchestration.md): records why the
   repository uses Netsuke instead of Make.
