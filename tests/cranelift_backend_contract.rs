@@ -82,6 +82,26 @@ fn cargo_defaults_leave_the_backend_on_llvm_and_keep_the_opt_in() {
     );
 }
 
+/// The Netsukefile must not define the opt-in variable that feeds the Cranelift
+/// flag into the development actions; its commented `vars` block is the opt-in.
+#[test]
+fn netsuke_manifest_leaves_the_opt_in_variable_undefined() {
+    let manifest = include_str!("../Netsukefile");
+    let active_definitions = manifest
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .filter(|line| line.trim_start().starts_with("cranelift_flag:"))
+        .count();
+    assert_eq!(
+        active_definitions, 0,
+        "an active `cranelift_flag` definition enables Cranelift in every development action"
+    );
+    assert!(
+        manifest.contains("#   cranelift_flag: \" -Zcodegen-backend=cranelift\""),
+        "the commented opt-in block must stay in the Netsukefile"
+    );
+}
+
 #[rstest]
 #[case("build")]
 #[case("test")]

@@ -6,8 +6,9 @@
 //! compiler diagnostics that keep the public error enums non-exhaustive.
 
 // Coverage instruments the parent test crate with LLVM. trybuild starts
-// nested Cargo builds that reload Cranelift from `.cargo/config.toml`; that
-// backend cannot accept LLVM coverage flags. CI runs these tests separately
+// nested Cargo builds that reload the development configuration from
+// `.cargo/config.toml`; a Cranelift opt-in there cannot accept LLVM coverage
+// flags. CI runs these tests separately
 // with `netsuke build test-ui` before its coverage step.
 /// Compiles and runs every display fixture, pinning public error message text.
 #[cfg_attr(

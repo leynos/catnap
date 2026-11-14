@@ -278,7 +278,7 @@ compete for cores or the package-cache lock, and `global-timeout = "90m"`
 bounds a whole run that a hung build would otherwise leave to the job's
 ceiling. Add a new test that spawns Cargo or `rustc` to the group's filter.
 
-The coverage action marks the two trybuild tests ignored because their nested
+The coverage action marks the three trybuild tests ignored because their nested
 Cargo processes reload the development configuration while LLVM coverage adds
 `-C instrument-coverage`, which a Cranelift opt-in could not use. CI runs the
 same UI tests with `netsuke build test-ui` before starting coverage, so they
@@ -306,8 +306,8 @@ to an empty value, which displaces the nightly flags in `.cargo/config.toml`
 before stable rustc runs. The measured `aarch64-unknown-linux-gnu` Cross
 release build passed with that exact override and the image's `cc` linker.
 
-The two trybuild UI targets are left to `netsuke build test-ui`, which CI runs
-separately (a cold local cache exceeds their allowance).
+The three trybuild UI targets are left to `netsuke build test-ui`, which CI
+runs separately (a cold local cache exceeds their allowance).
 
 `tests/build_backend_contract.rs` rejects profile-level backend keys while the
 release workflow uses stable. `tests/release_workflow.rs` requires empty

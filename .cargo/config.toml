@@ -22,6 +22,7 @@
 [build]
 # Cranelift disabled estate-wide on 14 November 2026 (concordat ADR; review 14 May 2027). Uncomment to opt back in.
 # rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift"]
+# (To opt in, swap that line for the active one below; TOML refuses two keys.)
 rustflags = ["-Zthreads=8"]
 
 # mold ships for Linux only, so the linker flag lives in a Linux-only table,
@@ -36,6 +37,7 @@ linker = "clang"
 [target.'cfg(target_os = "linux")']
 # Cranelift disabled estate-wide on 14 November 2026 (concordat ADR; review 14 May 2027). Uncomment to opt back in.
 # rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift", "-Clink-arg=-fuse-ld=mold"]
+# (To opt in, swap that line for the active one below; TOML refuses two keys.)
 rustflags = ["-Zthreads=8", "-Clink-arg=-fuse-ld=mold"]
 
 # Native Cargo metadata setting for dated nightlies from 2026-07-31 (rule
