@@ -13,13 +13,17 @@
 # without them on purpose. A direct `cargo build --release` keeps these flags
 # unless `RUSTFLAGS` is assigned.
 #
-# Development uses Cranelift through rustc's nightly flag rather than Cargo's
-# `[profile.dev] codegen-backend` key. The stable release workflow assigns an
-# empty `RUSTFLAGS`, which removes every nightly flag before stable rustc runs.
-# `rust-toolchain.toml` pins the component. See the accepted decision in
-# docs/adr/0001-cranelift-development-backend.md.
+# Development uses LLVM, the estate standard. An opt-in to Cranelift goes
+# through rustc's nightly flag rather than Cargo's `[profile.dev]
+# codegen-backend` key; the commented lines below hold that selection. The
+# stable release workflow assigns an empty `RUSTFLAGS`, which removes every
+# nightly flag before stable rustc runs. `rust-toolchain.toml` pins the
+# component. See the decision in docs/adr/0001-cranelift-development-backend.md.
 [build]
-rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift"]
+# Cranelift disabled estate-wide on 14 November 2026 (concordat ADR; review 14 May 2027). Uncomment to opt back in.
+# rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift"]
+# (To opt in, swap that line for the active one below; TOML refuses two keys.)
+rustflags = ["-Zthreads=8"]
 
 # mold ships for Linux only, so the linker flag lives in a Linux-only table,
 # with clang driving the link. Other targets, macOS and Windows included, fall
@@ -31,7 +35,10 @@ linker = "clang"
 # matches every Linux target, not one architecture; the triple tables above keep only the
 # linker. Other targets, macOS and Windows included, fall through to `[build] rustflags`.
 [target.'cfg(target_os = "linux")']
-rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift", "-Clink-arg=-fuse-ld=mold"]
+# Cranelift disabled estate-wide on 14 November 2026 (concordat ADR; review 14 May 2027). Uncomment to opt back in.
+# rustflags = ["-Zthreads=8", "-Zcodegen-backend=cranelift", "-Clink-arg=-fuse-ld=mold"]
+# (To opt in, swap that line for the active one below; TOML refuses two keys.)
+rustflags = ["-Zthreads=8", "-Clink-arg=-fuse-ld=mold"]
 
 # Native Cargo metadata setting for dated nightlies from 2026-07-31 (rule
 # `rust-dev-build-footprint`, DF-003): Cargo coordinates metadata output itself.

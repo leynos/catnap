@@ -1,11 +1,11 @@
 //! Contract tests for the Rust build standard.
 //!
-//! The standard makes the parallel `rustc` frontend and Cranelift the defaults
-//! for every development build on a nightly pin, and mold the default linker
-//! on Linux. Cargo reads these from `.cargo/config.toml`, but it applies a single
-//! `rustflags` source rather than merging them, and an assigned `RUSTFLAGS`
-//! replaces every source. So the flags must be repeated in each configuration
-//! source, restated wherever Netsuke assigns `RUSTFLAGS` for a development
+//! The standard makes the parallel `rustc` frontend the default (with LLVM as
+//! the backend; the Cranelift flag is disabled) for every development build on
+//! a nightly pin, and mold the default linker on Linux. Cargo reads these from
+//! `.cargo/config.toml`, but it applies a single `rustflags` source rather than merging them, and
+//! an assigned `RUSTFLAGS` replaces every source. So the flags must be repeated in each
+//! configuration source, restated wherever Netsuke assigns `RUSTFLAGS` for a development
 //! action, and kept out of the coverage and release actions, which measure or
 //! ship and so stay on the default flags. A stable pin takes mold alone,
 //! because the frontend and Cranelift flags require nightly.

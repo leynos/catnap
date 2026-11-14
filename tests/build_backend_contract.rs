@@ -3,9 +3,10 @@
 //! The release workflow builds with `cross +stable build --release`, and stable
 //! Cargo reads `.cargo/config.toml` like any other Cargo. It refuses a
 //! `codegen-backend` key there ("config profile `dev` is not valid") and stops,
-//! so the profile-level Cargo setting remains forbidden. Development selects
-//! Cranelift with rustc's `-Zcodegen-backend=cranelift` flag; the release build
-//! assigns an empty `RUSTFLAGS` so stable rustc never receives that flag. The
+//! so the profile-level Cargo setting remains forbidden. Development uses LLVM;
+//! an opt-in selects Cranelift with rustc's `-Zcodegen-backend=cranelift` flag,
+//! and the release build assigns an empty `RUSTFLAGS` so stable rustc never
+//! receives that flag. The
 //! judgement is driven against fixtures first, because a rule exercised only
 //! over this repository's own compliant files would pass whether or not it
 //! detects anything, and then applied to the real files. Both are read as text

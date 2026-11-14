@@ -1,5 +1,9 @@
 netsuke_version: "1.0.0"
 
+# Cranelift disabled estate-wide on 14 November 2026 (concordat ADR; review 14 May 2027). Uncomment to opt back in.
+# vars:
+#   cranelift_flag: " -Zcodegen-backend=cranelift"
+
 actions:
   - name: all
     description: Run comprehensive checks sequentially
@@ -41,16 +45,14 @@ actions:
       - check-build-tools
     command:
       - >-
-        RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-D warnings -Zthreads=8
-        -Zcodegen-backend=cranelift$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
+        RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-D warnings -Zthreads=8{{ cranelift_flag | default("") }}$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
         printf ' -Clink-arg=-fuse-ld=mold'; fi)"
         PATH="${BUILD_TOOLS_PREFIX:-$HOME/.local}/bin:$PATH"
         cargo {% if command_available("cargo-nextest", cwd_mode="never") %}nextest run{% else %}test{% endif %}
         --all-targets --all-features
       - >-
         if command -v cargo-nextest >/dev/null 2>&1; then
-        RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-D warnings -Zthreads=8
-        -Zcodegen-backend=cranelift$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
+        RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-D warnings -Zthreads=8{{ cranelift_flag | default("") }}$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
         printf ' -Clink-arg=-fuse-ld=mold'; fi)"
         PATH="${BUILD_TOOLS_PREFIX:-$HOME/.local}/bin:$PATH"
         cargo test --workspace --doc --all-features; fi
@@ -60,8 +62,7 @@ actions:
     deps:
       - check-build-tools
     command: >-
-      RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-D warnings -Zthreads=8
-      -Zcodegen-backend=cranelift$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
+      RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-D warnings -Zthreads=8{{ cranelift_flag | default("") }}$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
       printf ' -Clink-arg=-fuse-ld=mold'; fi)"
       PATH="${BUILD_TOOLS_PREFIX:-$HOME/.local}/bin:$PATH"
       cargo {% if command_available("cargo-nextest", cwd_mode="never") %}nextest run{% else %}test{% endif %}
@@ -72,8 +73,7 @@ actions:
     deps:
       - check-build-tools
     command: >-
-      RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Zthreads=8
-      -Zcodegen-backend=cranelift$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
+      RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Zthreads=8{{ cranelift_flag | default("") }}$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
       printf ' -Clink-arg=-fuse-ld=mold'; fi)"
       PATH="${BUILD_TOOLS_PREFIX:-$HOME/.local}/bin:$PATH"
       cargo build --bin catnap
@@ -109,14 +109,12 @@ actions:
     command:
       - >-
         RUSTDOCFLAGS="-D warnings"
-        RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Zthreads=8
-        -Zcodegen-backend=cranelift$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
+        RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Zthreads=8{{ cranelift_flag | default("") }}$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
         printf ' -Clink-arg=-fuse-ld=mold'; fi)"
         PATH="${BUILD_TOOLS_PREFIX:-$HOME/.local}/bin:$PATH"
         cargo doc --no-deps
       - >-
-        RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Zthreads=8
-        -Zcodegen-backend=cranelift$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
+        RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-Zthreads=8{{ cranelift_flag | default("") }}$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
         printf ' -Clink-arg=-fuse-ld=mold'; fi)"
         PATH="${BUILD_TOOLS_PREFIX:-$HOME/.local}/bin:$PATH"
         cargo clippy --all-targets --all-features -- -D warnings
@@ -147,8 +145,7 @@ actions:
     deps:
       - check-build-tools
     command: >-
-      RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-D warnings -Zthreads=8
-      -Zcodegen-backend=cranelift$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
+      RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-D warnings -Zthreads=8{{ cranelift_flag | default("") }}$(if [ "${BUILD_HOST_OS:-$(uname -s)}" = Linux ]; then
       printf ' -Clink-arg=-fuse-ld=mold'; fi)"
       PATH="${BUILD_TOOLS_PREFIX:-$HOME/.local}/bin:$PATH"
       cargo check --all-targets --all-features
