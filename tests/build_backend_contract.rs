@@ -79,36 +79,58 @@ fn builds_on_stable(workflow: &str) -> bool {
 /// quote marks: an inline table's entries and its comma-separated pairs, with
 /// anything inside a quoted string kept whole.
 fn entries(line: &str) -> Vec<String> {
-    let mut found = vec![String::new()];
-    let mut quote: Option<char> = None;
-    let mut is_escaped = false;
+    let mut splitter = EntrySplitter::default();
     for c in line.chars() {
-        if is_escaped {
-            if let Some(current) = found.last_mut() {
-                current.push(c);
-            }
-            is_escaped = false;
-            continue;
-        }
-        match (quote, c) {
-            (Some('"'), '\\') => {
-                is_escaped = true;
-                if let Some(current) = found.last_mut() {
-                    current.push(c);
-                }
-            }
-            (None, '"' | '\'') => quote = Some(c),
-            (Some(open), _) if c == open => quote = None,
-            (None, '{' | ',') => found.push(String::new()),
-            (None, ' ') => {}
-            _ => {
-                if let Some(current) = found.last_mut() {
-                    current.push(c);
-                }
-            }
+        splitter.feed(c);
+    }
+    splitter.found
+}
+
+/// Scanner state for `entries`: the entries so far, the open quote mark, and
+/// whether the previous character was a backslash inside a double quote.
+struct EntrySplitter {
+    found: Vec<String>,
+    quote: Option<char>,
+    is_escaped: bool,
+}
+
+impl Default for EntrySplitter {
+    fn default() -> Self {
+        Self {
+            found: vec![String::new()],
+            quote: None,
+            is_escaped: false,
         }
     }
-    found
+}
+
+impl EntrySplitter {
+    /// Appends `c` to the entry being built.
+    fn push(&mut self, c: char) {
+        if let Some(current) = self.found.last_mut() {
+            current.push(c);
+        }
+    }
+
+    /// Consumes one character of the line.
+    fn feed(&mut self, c: char) {
+        if self.is_escaped {
+            self.push(c);
+            self.is_escaped = false;
+            return;
+        }
+        match (self.quote, c) {
+            (Some('"'), '\\') => {
+                self.is_escaped = true;
+                self.push(c);
+            }
+            (None, '"' | '\'') => self.quote = Some(c),
+            (Some(open), _) if c == open => self.quote = None,
+            (None, '{' | ',') => self.found.push(String::new()),
+            (None, ' ') => {}
+            _ => self.push(c),
+        }
+    }
 }
 
 /// Returns whether a configuration line sets a `codegen-backend` key. A string
