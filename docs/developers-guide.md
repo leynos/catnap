@@ -23,7 +23,13 @@ contract gates sequentially, with `test-workflow-contracts` last. The separate
 Whitaker runs with warnings denied and without the development frontend or
 linker flags. CI installs the rolling suite with the pinned shared
 `install-whitaker` action, which verifies the default installer binary and
-refuses a source-build fallback. The suite version is not overridden.
+refuses a source-build fallback. The suite version is not overridden. Cognitive
+complexity is not gated by Clippy, because Clippy's `cognitive_complexity`
+scores code after macro expansion and counts branching a macro generated.
+Whitaker's experimental `macro_aware_cognitive_complexity` gates it at
+`max_complexity = 9`, CodeScene's ceiling; `dylint.toml` opts in with
+`[whitaker] experimental = ["macro_aware_cognitive_complexity"]`. Fix a finding
+by extracting named helpers, never by raising the threshold.
 `netsuke build test` prefers `cargo nextest run` and falls back to `cargo test`
 when cargo-nextest is not available on `PATH`; its executable lookup excludes
 the workspace. Since nextest does not execute doctests, the nextest route
