@@ -27,13 +27,13 @@ refuses a source-build fallback. The suite version is not overridden. Cognitive
 complexity is not gated by Clippy, because Clippy's `cognitive_complexity`
 scores code after macro expansion and counts branching a macro generated.
 Whitaker's experimental `macro_aware_cognitive_complexity` gates it at
-`max_complexity = 9`, CodeScene's ceiling; `dylint.toml` opts in with
-the `experimental` key in its `[whitaker]` table. Fix a finding
-by extracting named helpers, never by raising the threshold.
-`netsuke build test` prefers `cargo nextest run` and falls back to `cargo test`
-when cargo-nextest is not available on `PATH`; its executable lookup excludes
-the workspace. Since nextest does not execute doctests, the nextest route
-follows with `cargo test --workspace --doc --all-features`. The
+`max_complexity = 9`, CodeScene's ceiling; `dylint.toml` opts in with the
+`experimental` key in its `[whitaker]` table. Fix a finding by extracting named
+helpers, never by raising the threshold. `netsuke build test` prefers
+`cargo nextest run` and falls back to `cargo test` when cargo-nextest is not
+available on `PATH`; its executable lookup excludes the workspace. Since
+nextest does not execute doctests, the nextest route follows with
+`cargo test --workspace --doc --all-features`. The
 `cargo test --all-targets --all-features` fallback does not run workspace
 doctests. `netsuke build coverage` uses `cargo llvm-cov` with `lld`.
 
