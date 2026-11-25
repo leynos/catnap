@@ -28,7 +28,7 @@ complexity is not gated by Clippy, because Clippy's `cognitive_complexity`
 scores code after macro expansion and counts branching a macro generated.
 Whitaker's experimental `macro_aware_cognitive_complexity` gates it at
 `max_complexity = 9`, CodeScene's ceiling; `dylint.toml` opts in with
-`[whitaker] experimental = ["macro_aware_cognitive_complexity"]`. Fix a finding
+the `experimental` key in its `[whitaker]` table. Fix a finding
 by extracting named helpers, never by raising the threshold.
 `netsuke build test` prefers `cargo nextest run` and falls back to `cargo test`
 when cargo-nextest is not available on `PATH`; its executable lookup excludes
