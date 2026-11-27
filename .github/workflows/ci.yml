@@ -28,7 +28,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@b804b69fa7f978cf9091b9d9bd5481d8ce58c2ea
+        uses: leynos/shared-actions/.github/actions/setup-rust@a108423efa7fb83565089449f2647d34286a48a4
         with:
           install-mold: 'true'
           expect-cache: any
@@ -64,7 +64,7 @@ jobs:
       - name: Install mdtablefix
         # `netsuke build check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.
-        uses: leynos/shared-actions/.github/actions/install-mdtablefix@0606ca899ce2995a0c4bc78e660e80832e6e8855
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@a108423efa7fb83565089449f2647d34286a48a4
         with:
           version: "0.6.1"
 
@@ -95,7 +95,7 @@ jobs:
       - name: Install Whitaker
         uses: leynos/shared-actions/.github/actions/install-whitaker@0eabb6bc07148981de5da395e30cd78d83f5c7c2
       - name: Install the YAML lint tools
-        uses: leynos/shared-actions/.github/actions/install-yaml-lint@26c918632c5413039a84358fafe012a4399a9ec7
+        uses: leynos/shared-actions/.github/actions/install-yaml-lint@a108423efa7fb83565089449f2647d34286a48a4
       - name: Lint
         run: netsuke build lint
       - name: Log coverage linker configuration
@@ -114,7 +114,7 @@ jobs:
         # is not. `coverage-main.yml` owns both persistent outputs, and the
         # baseline paths are the action's defaults on both sides, so this
         # ratchet reads the baseline that workflow writes.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@d4d248bbbecdcf7b4f5bc79ffd4d6caee370bd79
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a108423efa7fb83565089449f2647d34286a48a4
         env:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
           RUSTFLAGS: -C link-arg=-fuse-ld=lld
