@@ -20,8 +20,6 @@ jobs:
       BUILD_PROFILE: debug
       NETSUKE_TOOLCHAIN: nightly-2026-08-23
       NETSUKE_VERSION: 0.1.0-beta4
-      UV_CACHE_DIR: ${{ github.workspace }}/.uv-cache
-      UV_TOOL_DIR: ${{ github.workspace }}/.uv-tools
       UV_TOOL_BIN_DIR: ${{ github.workspace }}/.uv-bin
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
